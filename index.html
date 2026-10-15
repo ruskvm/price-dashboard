@@ -1,0 +1,2329 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#000000" id="themeColorMeta">
+  <meta name="referrer" content="no-referrer">
+  <!-- The always-on copy may only talk to CloudKit and the two price APIs;
+       nothing else can receive the decrypted portfolio. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.apple-cloudkit.com https://api.binance.com https://api.binance.us https://api.coingecko.com; base-uri 'none'; form-action 'none'">
+  <title>Price</title>
+  <!-- Relative asset paths: the phone serves them next to /dashboard/<token>,
+       the hosted always-on copy from its own folder. -->
+  <link rel="icon" type="image/png" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preload" href="assets/manrope-bold.ttf" as="font" type="font/ttf" crossorigin>
+  <style>
+    /* Mirrors the iOS app's design system (AppTheme / PriceTypography):
+       one Manrope Bold face, a flat canvas, solid surfaces with no blur,
+       gradient or shadow, monochrome controls and the user's trend colours. */
+    @font-face {
+      font-family: "Price Manrope";
+      src: url("assets/manrope-bold.ttf") format("truetype");
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+    :root {
+      color-scheme: dark;
+      --canvas: #000000;
+      --surface: #1B1B1B;
+      --raised: #282828;
+      --text: #F5F5F5;
+      --secondary: #A0A0A0;
+      --muted: rgba(245, 245, 245, 0.55);
+      --faint: rgba(245, 245, 245, 0.25);
+      --separator: rgba(255, 255, 255, 0.10);
+      --hairline: rgba(255, 255, 255, 0.07);
+      --fill: rgba(255, 255, 255, 0.08);
+      --row-hover: rgba(255, 255, 255, 0.04);
+      --ink: #FFFFFF;
+      --on-ink: #000000;
+      --tooltip: rgba(30, 30, 30, 0.84);
+      --up: #00D222;
+      --down: #FF2C2C;
+      --usd: #30D158;
+      --eur: #0A84FF;
+      --radius: 16px;
+      --font: "Price Manrope", "Manrope", ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --canvas: #FBFCF9;
+      --surface: #F0F2EE;
+      --raised: #E9ECE6;
+      --text: #171A18;
+      --secondary: #71796F;
+      --muted: rgba(23, 26, 24, 0.55);
+      --faint: rgba(23, 26, 24, 0.25);
+      --separator: rgba(0, 0, 0, 0.10);
+      --hairline: rgba(0, 0, 0, 0.07);
+      --fill: rgba(0, 0, 0, 0.06);
+      --row-hover: rgba(0, 0, 0, 0.03);
+      --ink: #000000;
+      --on-ink: #FFFFFF;
+      --tooltip: rgba(240, 242, 238, 0.88);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; }
+    body {
+      min-height: 100vh;
+      background: var(--canvas);
+      color: var(--text);
+      font-family: var(--font);
+      font-weight: 700;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+    button, select { font: inherit; color: inherit; }
+    h1, h2, p { margin: 0; font-weight: inherit; }
+    :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 8px; }
+    .num { font-variant-numeric: tabular-nums; }
+    .up { color: var(--up); }
+    .down { color: var(--down); }
+    .muted { color: var(--muted); }
+
+    .app {
+      max-width: 1720px;
+      margin: 0 auto;
+      padding: 14px clamp(16px, 2vw, 32px) 28px;
+    }
+
+    /* Top bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 56px;
+      margin-bottom: 10px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand-icon { width: 30px; height: 30px; border-radius: 7px; display: block; }
+    .brand-name { font-size: 22px; letter-spacing: -0.6px; }
+    .top-actions { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--secondary);
+      white-space: nowrap;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--secondary);
+      transition: background-color 0.2s ease;
+    }
+    /* Nothing to say while everything works; only problems surface. */
+    .status[data-state="live"] { display: none; }
+    .status a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+    .status[data-state="offline"] .status-dot,
+    .status[data-state="expired"] .status-dot { background: var(--down); }
+    .profile { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      flex: 0 0 auto;
+      font-size: 14px;
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .profile-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+    .select-pill { position: relative; min-width: 0; }
+    .select-pill select {
+      appearance: none;
+      -webkit-appearance: none;
+      border: 0;
+      border-radius: 999px;
+      background: var(--fill);
+      color: var(--text);
+      font-size: 14px;
+      padding: 8px 32px 8px 14px;
+      max-width: 240px;
+      cursor: pointer;
+      text-overflow: ellipsis;
+    }
+    .select-pill select:hover { background: var(--separator); }
+    /* Browsers treat a clicked <select> as keyboard focus and ring it; a
+       tone shift reads as focus without the white outline. */
+    .select-pill select:focus,
+    .select-pill select:focus-visible { outline: none; box-shadow: none; background: var(--separator); }
+    .select-pill select:disabled { cursor: default; opacity: 0.6; }
+    .select-pill::after {
+      content: "";
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: translateY(-70%) rotate(45deg);
+      pointer-events: none;
+    }
+
+    /* Layout */
+    .dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "hero" "overview" "holdings" "watchlist";
+      gap: 20px;
+    }
+    .hero { grid-area: hero; }
+    .overview { grid-area: overview; }
+    .holdings { grid-area: holdings; }
+    .watchlist { grid-area: watchlist; }
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      min-width: 0;
+    }
+    .section-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .section-head h2 { font-size: 20px; letter-spacing: -0.2px; }
+    .count { font-size: 15px; color: var(--secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .micro {
+      font-size: 10px;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* Hero: same stack as the Portfolio tab */
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      min-width: 0;
+      padding-top: 6px;
+    }
+    .hero-label { font-size: 13px; color: var(--secondary); text-align: center; }
+    .net {
+      font-size: clamp(44px, 4.8vw, 74px);
+      letter-spacing: -0.045em;
+      line-height: 1.16;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 4px;
+    }
+    .change {
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
+      gap: 6px;
+      min-height: 22px;
+      margin-top: 4px;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .change .chg-usd, .change .chg-tf { color: var(--muted); }
+    .change .chg-tf { font-size: 11px; }
+    .change .chg-group { display: inline-flex; align-items: baseline; gap: 4px; }
+
+    .chart {
+      position: relative;
+      height: 220px;
+      margin: 26px -4px 18px;
+      touch-action: pan-y;
+      cursor: crosshair;
+      transition: opacity 0.2s ease;
+    }
+    .chart.pending { opacity: 0.45; }
+    .chart-body { position: absolute; inset: 0; }
+    .chart-body svg, .chart-overlay { display: block; overflow: visible; }
+    .chart-overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+    .chart-svg.reveal { animation: chartReveal 0.45s ease-out both; }
+    @keyframes chartReveal {
+      from { clip-path: inset(0 100% 0 0); opacity: 0.35; }
+      to { clip-path: inset(0 0 0 0); opacity: 1; }
+    }
+    .baseline { stroke: var(--text); stroke-opacity: 0.16; stroke-width: 1; stroke-dasharray: 4 5; }
+    .chart-overlay { pointer-events: none; opacity: 0; }
+    .chart.hovering .chart-overlay { opacity: 1; }
+    .chart-overlay .cross-v { stroke-width: 1; stroke-dasharray: 3 4; }
+    .chart-overlay .cross-h { stroke: var(--text); stroke-opacity: 0.2; stroke-width: 1; stroke-dasharray: 3 4; }
+    .chart-dot, .chart-live {
+      position: absolute;
+      left: 0;
+      top: 0;
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    }
+    .chart-dot {
+      width: 11px;
+      height: 11px;
+      background: var(--dot-color, var(--up));
+      box-shadow: 0 0 0 2px var(--canvas), 0 0 8px var(--dot-glow, transparent);
+      opacity: 0;
+    }
+    .chart.hovering .chart-dot { opacity: 1; }
+    .chart-live {
+      width: 10px;
+      height: 10px;
+      background: var(--dot-color, var(--up));
+      box-shadow: 0 0 0 2px var(--canvas), 0 0 5px var(--dot-glow, transparent);
+      transition: opacity 0.15s ease;
+    }
+    .chart-live::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 12px;
+      height: 12px;
+      margin: -6px 0 0 -6px;
+      border-radius: 50%;
+      border: 1px solid var(--dot-color, var(--up));
+      opacity: 0;
+    }
+    .chart-live.pulse::after { animation: livePulse 0.9s cubic-bezier(0.2, 0.7, 0.3, 1) 1; }
+    @keyframes livePulse {
+      0% { transform: scale(1); opacity: 0.6; }
+      100% { transform: scale(1.85); opacity: 0; }
+    }
+    .chart.hovering .chart-live, .chart.no-series .chart-live { opacity: 0; }
+    .chart-tip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      padding: 6px 11px;
+      border-radius: 12px;
+      background: var(--tooltip);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      backdrop-filter: blur(20px) saturate(1.4);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent);
+      text-align: center;
+      pointer-events: none;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+    }
+    .chart.hovering .chart-tip { opacity: 1; }
+    .tip-value { font-size: 13px; font-variant-numeric: tabular-nums; }
+    .tip-date { font-size: 10px; color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 1px; font-variant-numeric: tabular-nums; }
+    .chart-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--secondary);
+      font-size: 12px;
+      cursor: default;
+    }
+
+    /* Segmented control: the app's monochrome picker — solid ink pill,
+       inverse label, no tint. */
+    .range-row { display: flex; justify-content: center; padding: 0 4px; }
+    .segmented {
+      --count: 6;
+      --index: 0;
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+      width: min(100%, 380px);
+      padding: 2px;
+      border-radius: 999px;
+      background: var(--fill);
+      isolation: isolate;
+    }
+    .segmented.small { width: auto; grid-template-columns: repeat(var(--count), auto); }
+    .seg-thumb {
+      position: absolute;
+      top: 2px;
+      bottom: 2px;
+      left: 2px;
+      width: calc((100% - 4px) / var(--count));
+      border-radius: 999px;
+      background: var(--ink);
+      transform: translateX(calc(var(--index) * 100%));
+      transition: transform 0.28s cubic-bezier(0.3, 0.7, 0.2, 1);
+      z-index: -1;
+    }
+    .segmented.small .seg-thumb { display: none; }
+    .seg {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      border-radius: 999px;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1;
+      padding: 8px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.2s ease;
+    }
+    .seg[aria-checked="true"] { color: var(--on-ink); }
+    .segmented.small .seg { font-size: 11px; padding: 7px 11px; }
+    .segmented.small .seg[aria-checked="true"] { background: var(--ink); }
+
+    /* Overview card */
+    .overview { padding: 20px; display: flex; flex-direction: column; gap: 22px; }
+    .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
+    .stat { min-width: 0; }
+    .stat-value {
+      font-size: 20px;
+      letter-spacing: -0.3px;
+      margin-top: 7px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .stat-value.none { color: var(--faint); }
+    .stat-sub { font-size: 12px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .divider { height: 1px; background: var(--separator); }
+    .allocation { display: flex; flex-direction: column; gap: 14px; }
+    .allocation .section-head { justify-content: space-between; }
+    .alloc-bar { display: flex; gap: 3px; height: 8px; }
+    .alloc-seg { border-radius: 999px; min-width: 3px; }
+    .alloc-empty { height: 8px; border-radius: 999px; background: var(--fill); }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 11px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .legend-item .dot { width: 5px; height: 5px; border-radius: 50%; }
+    .legend-item .sym { color: var(--secondary); }
+    .legend-item .pct { font-variant-numeric: tabular-nums; }
+
+    /* Tables */
+    .table-card { display: flex; flex-direction: column; overflow: hidden; container-type: inline-size; }
+    .table-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 20px 10px;
+      flex-wrap: wrap;
+    }
+    .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .chip {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      background: var(--fill);
+      color: var(--text);
+      font-size: 11px;
+      padding: 7px 11px;
+      cursor: pointer;
+    }
+    .chip:hover { background: var(--separator); }
+    .table-scroll {
+      position: relative;
+      overflow-x: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: var(--faint) transparent;
+      padding-bottom: 6px;
+    }
+    /* Fixed layout: numeric columns have set widths and the asset column
+       takes what's left (names ellipsize), so a long name can never push
+       the price column past the card edge. */
+    table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+    .col-price { width: 120px; }
+    .col-change { width: 80px; }
+    .col-pnl { width: 80px; }
+    .col-yield { width: 92px; }
+    .col-cap { width: 100px; }
+    .col-trend { width: 112px; }
+    .col-value { width: 132px; }
+    .watch-table .col-value { width: 140px; }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--surface);
+      text-align: left;
+      padding: 0;
+      font-weight: inherit;
+      box-shadow: inset 0 -1px 0 var(--hairline);
+      white-space: nowrap;
+    }
+    th.num { text-align: right; }
+    .th-label, .th-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      font-size: 10px;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .th-btn { appearance: none; border: 0; background: transparent; cursor: pointer; border-radius: 6px; }
+    .th-btn:hover, th[aria-sort="ascending"] .th-btn, th[aria-sort="descending"] .th-btn { color: var(--text); }
+    .th-arrow { width: 8px; font-size: 9px; letter-spacing: 0; }
+    th:first-child .th-btn, th:first-child .th-label { padding-left: 20px; }
+    th:last-child .th-btn, th:last-child .th-label { padding-right: 20px; }
+    td {
+      padding: 12px;
+      border-top: 1px solid var(--hairline);
+      font-size: 14px;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    tbody tr:first-child td { border-top: 0; }
+    td:first-child { padding-left: 20px; }
+    td:last-child { padding-right: 20px; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr { transition: background-color 0.12s ease; }
+    tbody tr:hover { background: var(--row-hover); }
+    .asset { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .asset-copy { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+    .asset-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
+    .asset-sub { font-size: 12px; color: var(--muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .value-main { font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
+    .value-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .value-sub:empty { display: none; }
+    .mini { width: 88px; height: 28px; display: flex; align-items: center; }
+    .mini svg { display: block; overflow: visible; }
+    .debt-bar { display: flex; gap: 1px; width: 88px; height: 4px; }
+    .debt-bar span { height: 100%; border-radius: 2px; opacity: 0.85; }
+    .dash { color: var(--faint); }
+    .only-compact { display: none; }
+    .hide-pnl .col-pnl, .hide-yield .col-yield { display: none; }
+    .empty {
+      padding: 26px 20px 30px;
+      color: var(--secondary);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    /* Coin badges, same shapes as CoinBadge / LetterBadge */
+    .badge {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+    }
+    .badge-letter {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #FFFFFF;
+      font-size: 18px;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--tint) 95%, transparent), color-mix(in srgb, var(--tint) 55%, transparent));
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    }
+    .badge.has-img .badge-letter { visibility: hidden; }
+    .badge-img { position: relative; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+    .badge.shape-rounded .badge-img, .badge.shape-rounded .badge-letter { border-radius: 22.5%; }
+    .badge.shape-free .badge-img { border-radius: 0; object-fit: contain; }
+    .badge.cash { color: #FFFFFF; font-size: 19px; }
+    .badge.cash.usd { background: var(--usd); }
+    .badge.cash.eur { background: var(--eur); }
+
+    /* Container-driven column dropping; at phone widths the rows become the
+       app's list rows (name / "amount SYM · price", sparkline, value / %). */
+    /* Thresholds keep the asset column at ~210px or more. */
+    @container (max-width: 830px) {
+      .holdings-table .col-yield { display: none; }
+    }
+    @container (max-width: 740px) {
+      .holdings-table .col-pnl { display: none; }
+    }
+    @container (max-width: 660px) {
+      .holdings-table .col-price { display: none; }
+    }
+    @container (max-width: 650px) {
+      .watch-table .col-cap { display: none; }
+    }
+    @container (max-width: 545px) {
+      thead { display: none; }
+      .col-price, .col-change, .col-cap { display: none; }
+      .only-wide { display: none; }
+      .only-compact { display: inline; }
+      td { padding: 14px 6px; }
+      td:first-child { padding-left: 16px; }
+      td:last-child { padding-right: 16px; }
+      .col-trend { width: 66px; }
+      .col-value, .watch-table .col-value { width: 124px; }
+      .badge { width: 40px; height: 40px; }
+      .asset-name, .value-main { font-size: 16px; }
+      .mini, .mini svg { width: 54px; height: 26px; }
+      .debt-bar { width: 50px; }
+    }
+
+    @media (min-width: 1180px) {
+      .dashboard {
+        grid-template-columns: minmax(0, 1.6fr) minmax(340px, 1fr);
+        grid-template-areas: "hero overview" "holdings watchlist";
+        column-gap: 28px;
+        row-gap: 24px;
+      }
+      .overview { align-self: start; }
+    }
+    /* Tall desktop windows: the dashboard fits the viewport and each list
+       scrolls inside its own card. */
+    @media (min-width: 1180px) and (min-height: 820px) {
+      html, body { height: 100%; overflow: hidden; }
+      .app { height: 100vh; display: flex; flex-direction: column; padding-bottom: 20px; }
+      .dashboard { flex: 1 1 auto; min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+      .table-card { min-height: 0; }
+      .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+      .chart { height: clamp(170px, calc(100vh - 640px), 280px); }
+    }
+    @media (min-width: 760px) and (max-width: 1179px) {
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .app { padding-left: 16px; padding-right: 16px; }
+      .status-text { display: none; }
+      .brand-name { font-size: 20px; }
+      .net { font-size: clamp(38px, 12vw, 58px); }
+      .chart { height: 180px; }
+      .stat-value { font-size: 18px; }
+      .select-pill select { max-width: 150px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .chart-svg.reveal { animation: none; }
+      .chart-live.pulse::after { animation: none; }
+      .seg-thumb, .chart, tbody tr { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-icon" src="apple-touch-icon.png" alt="">
+        <h1 class="brand-name">Price</h1>
+      </div>
+      <div class="top-actions">
+        <span class="status" id="status" data-state="live" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span><span class="status-text" id="statusText">Live</span>
+        </span>
+        <div class="profile">
+          <span class="avatar" id="avatar" aria-hidden="true"></span>
+          <span id="profileControl"></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="hero" aria-label="Portfolio">
+        <div class="hero-label">Total balance</div>
+        <div class="net" id="netWorth">&#8212;</div>
+        <div class="change" id="change"></div>
+        <div class="chart no-series" id="chart" role="img" aria-label="Portfolio chart">
+          <div class="chart-body" id="chartBody"></div>
+          <svg class="chart-overlay" id="chartOverlay" aria-hidden="true"><line class="cross-v" id="crossV"/><line class="cross-h" id="crossH"/></svg>
+          <span class="chart-live" id="chartLive" aria-hidden="true"></span>
+          <span class="chart-dot" id="chartDot" aria-hidden="true"></span>
+          <div class="chart-tip" id="chartTip" aria-hidden="true"></div>
+        </div>
+        <div class="range-row">
+          <div class="segmented" id="rangeControl" role="radiogroup" aria-label="Chart timeframe"></div>
+        </div>
+      </section>
+
+      <aside class="card overview" aria-label="Overview">
+        <div class="stats" id="stats"></div>
+        <div class="divider"></div>
+        <div class="allocation">
+          <div class="section-head"><h2>Allocation</h2></div>
+          <div class="alloc-bar" id="allocationBar"></div>
+          <div class="legend" id="allocationLegend"></div>
+        </div>
+      </aside>
+
+      <section class="card table-card holdings" aria-label="Holdings">
+        <div class="table-head">
+          <div class="section-head"><h2>Holdings</h2><span class="count" id="holdingsCount"></span></div>
+          <div class="tools" id="holdingTools"></div>
+        </div>
+        <div class="table-scroll">
+          <table class="holdings-table" id="holdingsTable"><thead></thead><tbody></tbody></table>
+          <div class="empty" id="holdingsEmpty" hidden></div>
+        </div>
+      </section>
+
+      <section class="card table-card watchlist" aria-label="Watchlist">
+        <div class="table-head">
+          <div class="section-head"><h2>Watchlist</h2><span class="count" id="watchCount"></span></div>
+          <div class="tools" id="watchTools"></div>
+        </div>
+        <div class="table-scroll">
+          <table class="watch-table" id="watchTable"><thead></thead><tbody></tbody></table>
+          <div class="empty" id="watchEmpty" hidden></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="application/json" id="initialState">null</script>
+  <script>
+  'use strict';
+  (() => {
+    const $ = (id) => document.getElementById(id);
+    const finite = (n) => typeof n === 'number' && Number.isFinite(n);
+    const DASH = '—';
+    const POLL_MS = 3000;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const prefersLight = window.matchMedia('(prefers-color-scheme: light)');
+
+    // Two ways in. Served by the phone (/dashboard/<token>): talk to the
+    // phone's /api. Opened from the always-on link (#r=<record>&k=<key>):
+    // read the encrypted iCloud snapshot and reprice it live ourselves, so
+    // the page keeps working while the phone sleeps.
+    const cloudParams = (() => {
+      const params = new URLSearchParams(location.hash.slice(1));
+      const record = params.get('r'), key = params.get('k');
+      return record && key && /^[A-Za-z0-9_-]+$/.test(record) ? { record, key } : null;
+    })();
+    const CLOUD = !!cloudParams;
+    const token = CLOUD ? '' : (location.pathname.split('/').filter(Boolean).pop() || '');
+    const CK_BASE = 'https://api.apple-cloudkit.com/database/1/iCloud.com.pie.CryptoFolio/production/public';
+    const CK_TOKEN = 'ca55220cc6f0310c62b41f22d0bd32b45253c39d3dd07da9638413d8867719dc';
+
+    let state = null;
+    let epoch = 0;              // bumps on every user mutation; stale polls are dropped
+    let inFlight = false;
+    let pollTimer = 0;
+    let failures = 0;
+    let linkExpired = false;
+    let linkMessage = '';
+    let pendingRange = null;
+    let profileChanging = false;
+
+    // ---------- Theme & trend colours (mirrors AppTheme.trend) ----------
+    const THEMES = {
+      dark: { canvas: '#000000', text: '#F5F5F5' },
+      light: { canvas: '#FBFCF9', text: '#171A18' }
+    };
+    if (!/^(dark|light)$/.test(document.documentElement.dataset.theme || '')) {
+      document.documentElement.dataset.theme = prefersLight.matches ? 'light' : 'dark';
+    }
+    let theme = { name: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark', up: '#00D222', down: '#FF2C2C', text: '#F5F5F5', canvas: '#000000' };
+    theme.text = THEMES[theme.name].text;
+    theme.canvas = THEMES[theme.name].canvas;
+
+    function hexRGB(value) {
+      if (!/^#[0-9a-fA-F]{6}$/.test(String(value || ''))) return null;
+      const n = parseInt(value.slice(1), 16);
+      return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 };
+    }
+    function rgbHex(c) {
+      const h = (v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0');
+      return ('#' + h(c.r) + h(c.g) + h(c.b)).toUpperCase();
+    }
+    function relLuminance(c) {
+      const lin = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+    }
+    function contrast(a, b) {
+      const la = relLuminance(a), lb = relLuminance(b);
+      return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    }
+    // AppTheme.trend: glare-bright picks are scaled down to luma 0.6 so the
+    // page shows the same tone the app paints (#00FF29 -> #00D222).
+    function trendForUse(c) {
+      const luma = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+      if (luma <= 0.6 || luma <= 0) return c;
+      const k = 0.6 / luma;
+      return { r: c.r * k, g: c.g * k, b: c.b * k };
+    }
+    // Last resort for a pick that still vanishes into the canvas: darken on
+    // the light canvas, lighten on the black one.
+    function canvasSafe(c, canvas, dark) {
+      if (contrast(c, canvas) >= 1.6) return c;
+      return dark
+        ? { r: c.r * 0.5 + 0.45, g: c.g * 0.5 + 0.45, b: c.b * 0.5 + 0.45 }
+        : { r: c.r * 0.34 + 0.04, g: c.g * 0.34 + 0.04, b: c.b * 0.34 + 0.06 };
+    }
+    function resolveTrend(hex, fallback, base, dark) {
+      const c = hexRGB(hex) || hexRGB(fallback);
+      return rgbHex(canvasSafe(trendForUse(c), hexRGB(base.canvas), dark));
+    }
+    function applyTheme() {
+      const d = (state && state.display) || {};
+      const name = d.resolvedAppearance === 'light' ? 'light' : 'dark';
+      const base = THEMES[name];
+      const dark = name === 'dark';
+      const next = {
+        name,
+        text: base.text,
+        canvas: base.canvas,
+        up: resolveTrend(d.upColorHex, '#00FF29', base, dark),
+        down: resolveTrend(d.downColorHex, '#FF2C2C', base, dark)
+      };
+      const changed = next.name !== theme.name || next.up !== theme.up || next.down !== theme.down;
+      theme = next;
+      const root = document.documentElement;
+      if (root.dataset.theme !== name) root.dataset.theme = name;
+      root.style.setProperty('--up', next.up);
+      root.style.setProperty('--down', next.down);
+      $('themeColorMeta').setAttribute('content', base.canvas);
+      return changed;
+    }
+
+    // ---------- Formatting: ports of the app's formatters ----------
+    // (PortfolioView.swift / Denomination.swift). The phone pre-formats
+    // everything it sends; these produce the same strings for values the
+    // page computes itself (chart tooltip, live repricing).
+    let fmtDisplay = { currency: 'USD', usdPerEUR: 1.1 };
+    const nfCache = new Map();
+    function nf(min, max) {
+      const locale = fmtDisplay.locale || undefined;
+      const key = locale + '|' + min + '|' + max;
+      let f = nfCache.get(key);
+      if (!f) {
+        const opts = { minimumFractionDigits: min, maximumFractionDigits: Math.max(min, max), useGrouping: true };
+        try { f = new Intl.NumberFormat(locale, opts); } catch (_) { f = new Intl.NumberFormat(undefined, opts); }
+        nfCache.set(key, f);
+      }
+      return f;
+    }
+    function displayParts(usd) {
+      return fmtDisplay.currency === 'EUR'
+        ? { v: usd / Math.max(fmtDisplay.usdPerEUR || 1.1, 0.5), s: '€' }
+        : { v: usd, s: '$' };
+    }
+    function signed(v, sym, body) {
+      return v < 0 ? '-' + sym + body.replace(/^[-−]/, '') : sym + body;
+    }
+    function denomOn() {
+      return !!(fmtDisplay.denominationSymbol && finite(fmtDisplay.denominationPriceUSD) && fmtDisplay.denominationPriceUSD > 0);
+    }
+    function denomFmt(usd) {
+      const v = usd / fmtDisplay.denominationPriceUSD;
+      const a = Math.abs(v);
+      const digits = a >= 1000 ? 0 : a >= 1 ? 2 : a >= 0.01 ? 4 : 6;
+      return nf(digits === 0 ? 0 : Math.min(digits, 2), digits).format(v) + ' ' + fmtDisplay.denominationSymbol;
+    }
+    function fiatUSD(usd) {
+      const { v, s } = displayParts(usd);
+      return signed(v, s, nf(2, Math.abs(v) >= 1 ? 2 : 4).format(v));
+    }
+    function fmtUSD(usd) {
+      if (!finite(usd)) return DASH;
+      return denomOn() ? denomFmt(usd) : fiatUSD(usd);
+    }
+    const SUBSCRIPT = '₀₁₂₃₄₅₆₇₈₉';
+    function decimalSeparator() {
+      const part = nf(1, 1).formatToParts(1.5).find((p) => p.type === 'decimal');
+      return part ? part.value : '.';
+    }
+    function tinyFiat(v, sym) {
+      const a = Math.abs(v);
+      if (!(a > 0 && a < 0.0001)) return null;
+      const zeros = Math.ceil(-Math.log10(a)) - 1;
+      if (zeros < 4) return null;
+      const rounded = Math.round(a * Math.pow(10, zeros + 4));
+      if (!(rounded > 0 && rounded < 10000)) return null;
+      const sig = String(rounded).replace(/0+$/, '');
+      const sub = String(zeros).split('').map((c) => SUBSCRIPT[+c]).join('');
+      return (v < 0 ? '-' + sym : sym) + '0' + decimalSeparator() + '0' + sub + sig;
+    }
+    function fmtPrice(usd) {
+      if (!finite(usd)) return DASH;
+      if (denomOn()) return denomFmt(usd);
+      const { v, s } = displayParts(usd);
+      const tiny = tinyFiat(v, s);
+      if (tiny) return tiny;
+      const a = Math.abs(v);
+      return signed(v, s, nf(2, a >= 1 ? 2 : a >= 0.01 ? 5 : 8).format(v));
+    }
+    const TIERS = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'k']];
+    const compactDigits = (a) => (a >= 100 ? 0 : a >= 10 ? 1 : 2);
+    function compactFiat(v, sym) {
+      const a = Math.abs(v);
+      let tier = TIERS.findIndex((t) => a >= t[0]);
+      if (tier < 0) tier = TIERS.length - 1;
+      let scaled = v / TIERS[tier][0];
+      let digits = compactDigits(Math.abs(scaled));
+      while (tier > 0) {
+        const step = Math.pow(10, digits);
+        if (Math.abs(Math.round(scaled * step) / step) < 1000) break;
+        tier -= 1;
+        scaled = v / TIERS[tier][0];
+        digits = compactDigits(Math.abs(scaled));
+      }
+      return signed(scaled, sym, nf(0, digits).format(scaled)) + TIERS[tier][1];
+    }
+    function fmtCompactUSD(usd) {
+      if (!finite(usd)) return DASH;
+      if (denomOn()) return denomFmt(usd);
+      const { v, s } = displayParts(usd);
+      return Math.abs(v) >= 1000 ? compactFiat(v, s) : fiatUSD(usd);
+    }
+    function fmtCompactPrice(usd) {
+      if (denomOn()) return denomFmt(usd);
+      const { v, s } = displayParts(usd);
+      const tiny = tinyFiat(v, s);
+      if (tiny) return tiny;
+      return Math.abs(v) < 1000 ? fmtPrice(usd) : compactFiat(v, s);
+    }
+    function fmtPct(p, withSign = true) {
+      const sign = withSign && p >= 0 ? '+' : p < 0 ? '-' : '';
+      return sign + nf(2, 2).format(Math.abs(p)) + '%';
+    }
+    function fmtCashRate(symbol, usd) {
+      if (denomOn()) return fmtPrice(usd);
+      const shown = fmtDisplay.currency === 'EUR' ? 'EUR' : 'USD';
+      if (!(symbol === 'USD' || symbol === 'EUR') || symbol === shown) return fmtPrice(usd);
+      const { v, s } = displayParts(usd);
+      if (!(Math.abs(v) > 0)) return fmtPrice(usd);
+      return signed(v, s, nf(4, 4).format(v));
+    }
+    function fmtPillUSD(usd) {
+      if (denomOn()) return fmtCompactUSD(usd);
+      const { v, s } = displayParts(usd);
+      const a = Math.abs(v);
+      if (!(a >= 100 && a < 1000)) return fmtCompactUSD(usd);
+      return signed(v, s, nf(1, 1).format(v));
+    }
+    function fmtSignedPillUSD(usd) {
+      const body = fmtPillUSD(usd);
+      if (usd >= 0) return '+⁠' + body;
+      return body.startsWith('-') ? '-⁠' + body.slice(1) : body;
+    }
+    function fmtAmount(x) {
+      if (x === 0) return '0';
+      return nf(0, x >= 1 ? 4 : 8).format(x);
+    }
+    function fmtCompactAmount(x) {
+      const a = Math.abs(x);
+      let scaled, suffix;
+      if (a >= 1e12) { scaled = x / 1e12; suffix = 'T'; }
+      else if (a >= 1e9) { scaled = x / 1e9; suffix = 'B'; }
+      else if (a >= 1e6) { scaled = x / 1e6; suffix = 'M'; }
+      else if (a >= 1e4) { scaled = x / 1e3; suffix = 'k'; }
+      else return fmtAmount(x);
+      const as = Math.abs(scaled);
+      return nf(0, as >= 100 ? 0 : as >= 10 ? 1 : 2).format(scaled) + suffix;
+    }
+    // Net-worth hero precision modes (NetWorthDisplayPrecisionPreference).
+    function nwNextMagnitude(usd) {
+      if (denomOn()) return fmtUSD(usd);
+      const { v, s } = displayParts(usd);
+      const a = Math.abs(v);
+      if (a < 1000) return fmtUSD(usd);
+      let scaled, suffix;
+      if (a >= 1e9) { scaled = v / 1e12; suffix = 'T'; }
+      else if (a >= 1e6) { scaled = v / 1e9; suffix = 'B'; }
+      else { scaled = v / 1e6; suffix = 'M'; }
+      const as = Math.abs(scaled);
+      const digits = as >= 100 ? 0 : as >= 10 ? 1 : as >= 1 ? 2 : as >= 0.1 ? 1 : as >= 0.01 ? 2 : 3;
+      return signed(scaled, s, nf(0, digits).format(scaled)) + suffix;
+    }
+    function nwFractionDigits(as, suffix, maxDigits) {
+      if (maxDigits <= 1) return as >= 100 ? 0 : Math.max(0, maxDigits);
+      if (suffix === 'k') return as >= 100 ? 1 : Math.min(2, maxDigits);
+      if (as >= 100) return Math.min(1, maxDigits);
+      if (as >= 10) return Math.min(2, maxDigits);
+      return Math.min(3, maxDigits);
+    }
+    function nwCompact(usd, maxDigits, minDigits) {
+      if (denomOn()) return fmtUSD(usd);
+      const { v, s } = displayParts(usd);
+      const a = Math.abs(v);
+      if (a < 1000) return fmtUSD(usd);
+      let scaled, suffix;
+      if (a >= 1e12) { scaled = v / 1e12; suffix = 'T'; }
+      else if (a >= 1e9) { scaled = v / 1e9; suffix = 'B'; }
+      else if (a >= 1e6) { scaled = v / 1e6; suffix = 'M'; }
+      else { scaled = v / 1e3; suffix = 'k'; }
+      const digits = Math.max(0, nwFractionDigits(Math.abs(scaled), suffix, maxDigits));
+      return signed(scaled, s, nf(Math.min(Math.max(0, minDigits), digits), digits).format(scaled)) + suffix;
+    }
+    function fmtNetWorth(usd) {
+      switch (fmtDisplay.netWorthPrecision) {
+        case 0: return nwNextMagnitude(usd);
+        case 1: return nwCompact(usd, 1, 0);
+        case 2: {
+          const compact = nwCompact(usd, 1, 0), detailed = nwCompact(usd, 3, 0);
+          return detailed === compact ? nwCompact(usd, 3, 2) : detailed;
+        }
+        case 3: {
+          if (denomOn()) return fmtUSD(usd);
+          const { v, s } = displayParts(usd);
+          return signed(v, s, nf(0, 0).format(v));
+        }
+        default: return fmtUSD(usd);
+      }
+    }
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function tipDate(t) {
+      const d = new Date(t * 1000);
+      const p = (n) => String(n).padStart(2, '0');
+      return MONTHS[d.getMonth()] + ' ' + d.getDate() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+    function safeColor(value) {
+      return /^#[0-9a-fA-F]{6}$/.test(String(value || '')) ? value : '#7C9BFF';
+    }
+    const trendClass = (n) => (finite(n) ? (n < 0 ? 'down' : 'up') : 'muted');
+
+    // ---------- DOM diff helpers ----------
+    function setText(el, value) {
+      if (!el) return;
+      const text = String(value ?? '');
+      if (el.textContent !== text) el.textContent = text;
+    }
+    function setHTML(el, html) {
+      if (!el) return;
+      if (el._html !== html) { el._html = html; el.innerHTML = html; }
+    }
+    function setClass(el, cls) {
+      if (el && el.className !== cls) el.className = cls;
+    }
+    function storageGet(key, fallback) {
+      try { return localStorage.getItem(key) || fallback; } catch (_) { return fallback; }
+    }
+    function storageSet(key, value) {
+      try { localStorage.setItem(key, value); } catch (_) {}
+    }
+
+    // ---------- Chart geometry (port of boundedChartPath) ----------
+    function smoothPath(pts) {
+      if (!pts.length) return '';
+      const f = (n) => n.toFixed(2);
+      let d = 'M' + f(pts[0].x) + ' ' + f(pts[0].y);
+      if (pts.length < 2) return d;
+      const n = pts.length;
+      const slopes = [];
+      for (let i = 0; i < n - 1; i++) slopes.push((pts[i + 1].y - pts[i].y) / (pts[i + 1].x - pts[i].x));
+      const tangents = new Array(n).fill(0);
+      tangents[0] = slopes[0];
+      tangents[n - 1] = slopes[n - 2];
+      for (let i = 1; i < n - 1; i++) {
+        const before = slopes[i - 1], after = slopes[i];
+        if (!((before > 0 && after > 0) || (before < 0 && after < 0))) continue;
+        const smaller = Math.min(Math.abs(before), Math.abs(after));
+        const larger = Math.max(Math.abs(before), Math.abs(after));
+        tangents[i] = (before > 0 ? 1 : -1) * smaller * (2 / (1 + smaller / larger));
+      }
+      for (let i = 0; i < n - 1; i++) {
+        const a = pts[i], b = pts[i + 1], third = (b.x - a.x) / 3;
+        d += 'C' + f(a.x + third) + ' ' + f(a.y + tangents[i] * third) + ' '
+          + f(b.x - third) + ' ' + f(b.y - tangents[i + 1] * third) + ' '
+          + f(b.x) + ' ' + f(b.y);
+      }
+      return d;
+    }
+    function project(values, w, h, lineWidth) {
+      let lo = Infinity, hi = -Infinity;
+      for (const v of values) { if (v < lo) lo = v; if (v > hi) hi = v; }
+      const span = Math.max(hi - lo, 1e-9);
+      const inset = Math.max(2, Math.min(h * 0.18, lineWidth * 4 + 8));
+      const drawH = h - inset * 2;
+      const n = values.length;
+      return values.map((v, i) => ({ x: (i / (n - 1)) * w, y: inset + drawH - ((v - lo) / span) * drawH }));
+    }
+    function sparkSVG(points, w, h, lineWidth, opacity) {
+      const vals = (points || []).map((p) => p.v).filter(finite);
+      if (vals.length < 2) return '';
+      const color = vals[vals.length - 1] >= vals[0] ? 'var(--up)' : 'var(--down)';
+      const d = smoothPath(project(vals, w, h, lineWidth));
+      return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">'
+        + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-opacity="' + opacity + '" stroke-width="' + lineWidth + '" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    // ---------- Portfolio chart ----------
+    const chart = { sig: '', mode: '', geom: null, hoverX: null, lastValue: null, armed: false, lastPulse: 0 };
+
+    function seriesColor(points) {
+      const s = state.summary;
+      const sign = finite(s.rangeChangePct) ? s.rangeChangePct
+        : (points.length >= 2 ? points[points.length - 1].v - points[0].v : 0);
+      return sign >= 0 ? theme.up : theme.down;
+    }
+    function seriesSVG(points, w, h, color, reveal) {
+      const vals = points.map((p) => p.v);
+      const pts = project(vals, w, h, 2.2);
+      const line = smoothPath(pts);
+      const topY = Math.min(...pts.map((p) => p.y));
+      const area = line + 'L' + w + ' ' + h + 'L0 ' + h + 'Z';
+      const fadeW = Math.min(w * 0.07, 22);
+      const trailW = Math.min(w * 0.08, 26);
+      const openY = pts[0].y.toFixed(2);
+      chart.geom = { pts, points, w, h, color };
+      return '<svg class="chart-svg' + (reveal ? ' reveal' : '') + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><defs>'
+        + '<linearGradient id="pfFill" gradientUnits="userSpaceOnUse" x1="0" y1="' + topY.toFixed(2) + '" x2="0" y2="' + h + '">'
+        + '<stop offset="0" stop-color="' + color + '" stop-opacity=".30"/><stop offset=".34" stop-color="' + color + '" stop-opacity=".13"/>'
+        + '<stop offset=".72" stop-color="' + color + '" stop-opacity=".02"/><stop offset="1" stop-color="' + color + '" stop-opacity="0"/></linearGradient>'
+        + '<linearGradient id="pfStroke" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + w + '" y2="0">'
+        + '<stop offset="0" stop-color="' + color + '" stop-opacity=".62"/><stop offset=".45" stop-color="' + color + '" stop-opacity=".82"/>'
+        + '<stop offset="1" stop-color="' + color + '" stop-opacity="1"/></linearGradient>'
+        + '<linearGradient id="pfLead" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + fadeW.toFixed(2) + '" y2="0">'
+        + '<stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".4" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff"/></linearGradient>'
+        + '<linearGradient id="pfTrail" gradientUnits="userSpaceOnUse" x1="' + (w - trailW).toFixed(2) + '" y1="0" x2="' + w + '" y2="0">'
+        + '<stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity=".35"/></linearGradient>'
+        + '<mask id="pfLeadMask" maskUnits="userSpaceOnUse" x="-20" y="-20" width="' + (w + 40) + '" height="' + (h + 40) + '"><rect x="-20" y="-20" width="' + (w + 40) + '" height="' + (h + 40) + '" fill="url(#pfLead)"/></mask>'
+        + '<mask id="pfTrailMask" maskUnits="userSpaceOnUse" x="0" y="0" width="' + w + '" height="' + h + '"><rect width="' + w + '" height="' + h + '" fill="url(#pfTrail)"/></mask>'
+        + '</defs><g mask="url(#pfLeadMask)">'
+        + '<path d="' + area + '" fill="url(#pfFill)" mask="url(#pfTrailMask)"/>'
+        + '<line class="baseline" x1="0" x2="' + w + '" y1="' + openY + '" y2="' + openY + '"/>'
+        + '<path d="' + line + '" fill="none" stroke="url(#pfStroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '</g></svg>';
+    }
+    // ChartSkeleton: a neutral ghost series with a travelling highlight, so
+    // loading never pre-announces up or down.
+    function ghostSVG(w, h) {
+      const inset = Math.max(2, Math.min(h * 0.18, 2.4 * 4 + 8));
+      const drawH = h - inset * 2;
+      const mid = inset + drawH * 0.45;
+      const pts = [];
+      for (let i = 0; i <= 44; i++) {
+        const t = (i / 44) * Math.PI * 2.35 + 0.9;
+        pts.push({ x: (i / 44) * w, y: mid + Math.sin(t) * drawH * 0.15 + Math.cos(t * 1.7 + 0.6) * drawH * 0.085 });
+      }
+      const line = smoothPath(pts);
+      const topY = Math.min(...pts.map((p) => p.y));
+      const ink = theme.text;
+      const band = Math.max(38, w * 0.14);
+      const still = reducedMotion.matches;
+      const x1 = still ? w / 2 - band : -2 * band;
+      const x2 = still ? w / 2 + band : 0;
+      const sweep = still ? '' : '<animate attributeName="x1" from="' + (-2 * band) + '" to="' + w + '" dur="2.6s" repeatCount="indefinite"/>'
+        + '<animate attributeName="x2" from="0" to="' + (w + 2 * band) + '" dur="2.6s" repeatCount="indefinite"/>';
+      const fadeW = Math.min(w * 0.07, 22);
+      return '<svg class="chart-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><defs>'
+        + '<linearGradient id="ghFill" gradientUnits="userSpaceOnUse" x1="0" y1="' + topY.toFixed(2) + '" x2="0" y2="' + h + '">'
+        + '<stop offset="0" stop-color="' + ink + '" stop-opacity=".09"/><stop offset=".34" stop-color="' + ink + '" stop-opacity=".04"/>'
+        + '<stop offset=".72" stop-color="' + ink + '" stop-opacity=".01"/><stop offset="1" stop-color="' + ink + '" stop-opacity="0"/></linearGradient>'
+        + '<linearGradient id="ghSweep" gradientUnits="userSpaceOnUse" x1="' + x1 + '" y1="0" x2="' + x2 + '" y2="0">'
+        + '<stop offset="0" stop-color="' + ink + '" stop-opacity="0"/><stop offset=".5" stop-color="' + ink + '" stop-opacity="' + (still ? '.14' : '.30') + '"/>'
+        + '<stop offset="1" stop-color="' + ink + '" stop-opacity="0"/>' + sweep + '</linearGradient>'
+        + '<linearGradient id="ghLead" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + fadeW.toFixed(2) + '" y2="0">'
+        + '<stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".4" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff"/></linearGradient>'
+        + '<mask id="ghMask" maskUnits="userSpaceOnUse" x="-10" y="-10" width="' + (w + 20) + '" height="' + (h + 20) + '"><rect x="-10" y="-10" width="' + (w + 20) + '" height="' + (h + 20) + '" fill="url(#ghLead)"/></mask>'
+        + '</defs><g mask="url(#ghMask)">'
+        + '<path d="' + line + 'L' + w + ' ' + h + 'L0 ' + h + 'Z" fill="url(#ghFill)"/>'
+        + '<path d="' + line + '" fill="none" stroke="' + ink + '" stroke-opacity=".13" stroke-width="1.6" stroke-linecap="round"/>'
+        + '<path d="' + line + '" fill="none" stroke="url(#ghSweep)" stroke-width="1.9" stroke-linecap="round"/>'
+        + '</g></svg>';
+    }
+    function emptyChartHTML() {
+      const message = CLOUD ? 'Open this timeframe once in Price on your iPhone' : 'No chart data for this range';
+      return '<div class="chart-empty"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M3 3v18h18"/><path d="M6.5 15.5l4-4.5 3.5 3 5-6"/></svg><span>' + message + '</span></div>';
+    }
+
+    function renderChart(force) {
+      const el = $('chart');
+      const body = $('chartBody');
+      const points = (state.portfolioSparkline || []).filter((p) => finite(p.v) && finite(p.t));
+      const w = Math.max(1, Math.round(el.clientWidth));
+      const h = Math.max(1, Math.round(el.clientHeight));
+      const mode = points.length >= 2 ? 'series' : (state.summary.isLoadingChart ? 'loading' : 'empty');
+      const color = mode === 'series' ? seriesColor(points) : '';
+      let sum = 0;
+      for (const p of points) sum += p.v;
+      const sig = [mode, w, h, theme.name, color, points.length,
+        points.length ? points[0].t : 0, points.length ? points[points.length - 1].t : 0, sum].join('|');
+      if (!force && sig === chart.sig) return;
+      const reveal = mode === 'series' && chart.mode !== 'series' && chart.mode !== '' && !reducedMotion.matches;
+      chart.sig = sig;
+      if (mode === 'series') {
+        body.innerHTML = seriesSVG(points, w, h, color, reveal);
+      } else {
+        chart.geom = null;
+        body.innerHTML = mode === 'loading' ? ghostSVG(w, h) : emptyChartHTML();
+      }
+      if (chart.mode === 'series' && mode !== 'series') chart.armed = false;
+      chart.mode = mode;
+      el.classList.toggle('no-series', mode !== 'series');
+      el.style.setProperty('--dot-color', color || theme.up);
+      el.style.setProperty('--dot-glow', (color || theme.up) + '80');
+      $('crossV').setAttribute('stroke', color || theme.up);
+      $('crossV').setAttribute('stroke-opacity', '0.5');
+      const s = state.summary;
+      el.setAttribute('aria-label', 'Portfolio chart, ' + state.rangeLabel
+        + (s.text && s.text.rangeChangePct ? ', ' + s.text.rangeChangePct : ''));
+      placeLiveDot();
+      if (chart.hoverX !== null) hoverAt(chart.hoverX);
+    }
+    function placeLiveDot() {
+      const live = $('chartLive');
+      const g = chart.geom;
+      if (!g) return;
+      const last = g.pts[g.pts.length - 1];
+      live.style.left = last.x + 'px';
+      live.style.top = last.y + 'px';
+      const value = g.points[g.points.length - 1].v;
+      // Hydration (first frame, range switch) never pulses; only a later
+      // live change does, at most every 2.5 s — PriceLivePoint's rule.
+      if (chart.armed && chart.lastValue !== null && value !== chart.lastValue
+          && !reducedMotion.matches && Date.now() - chart.lastPulse >= 2500) {
+        chart.lastPulse = Date.now();
+        live.classList.remove('pulse');
+        void live.offsetWidth;
+        live.classList.add('pulse');
+      }
+      chart.armed = true;
+      chart.lastValue = value;
+    }
+    function hoverAt(clientX) {
+      const el = $('chart');
+      const g = chart.geom;
+      if (!g) { leaveChart(); return; }
+      const rect = el.getBoundingClientRect();
+      const x = Math.max(0, Math.min(g.w, clientX - rect.left));
+      const idx = Math.max(0, Math.min(g.pts.length - 1, Math.round((x / g.w) * (g.pts.length - 1))));
+      const pos = g.pts[idx];
+      const point = g.points[idx];
+      chart.hoverX = clientX;
+      el.classList.add('hovering');
+      const v = $('crossV'), hz = $('crossH');
+      v.setAttribute('x1', pos.x); v.setAttribute('x2', pos.x); v.setAttribute('y1', 0); v.setAttribute('y2', g.h);
+      hz.setAttribute('x1', 0); hz.setAttribute('x2', g.w); hz.setAttribute('y1', pos.y); hz.setAttribute('y2', pos.y);
+      const dot = $('chartDot');
+      dot.style.left = pos.x + 'px';
+      dot.style.top = pos.y + 'px';
+      const tip = $('chartTip');
+      setHTML(tip, '<div class="tip-value">' + esc(fmtUSD(point.v)) + '</div><div class="tip-date">' + esc(tipDate(point.t)) + '</div>');
+      const tw = tip.offsetWidth || 120, th = tip.offsetHeight || 42;
+      const offset = th / 2 + 5.5 + 12;
+      const above = pos.y - offset >= th / 2 + 6 || pos.y + offset > g.h - th / 2 - 6;
+      const left = Math.max(tw / 2, Math.min(g.w - tw / 2, pos.x));
+      tip.style.left = left + 'px';
+      tip.style.top = (above ? pos.y - offset : pos.y + offset) + 'px';
+    }
+    function leaveChart() {
+      chart.hoverX = null;
+      $('chart').classList.remove('hovering');
+    }
+    function wireChart() {
+      const el = $('chart');
+      el.addEventListener('pointermove', (e) => hoverAt(e.clientX));
+      el.addEventListener('pointerdown', (e) => hoverAt(e.clientX));
+      el.addEventListener('pointerleave', leaveChart);
+      el.addEventListener('pointercancel', leaveChart);
+      el.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') leaveChart(); });
+      let frame = 0;
+      new ResizeObserver(() => {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => {
+          if (state) renderChart(false);
+          else if (!$('chartBody').firstChild) $('chartBody').innerHTML = ghostSVG(Math.round(el.clientWidth), Math.round(el.clientHeight));
+        });
+      }).observe(el);
+    }
+
+    // ---------- Header, hero, range control ----------
+    function renderStatus() {
+      const el = $('status');
+      let mode = 'live', text = '', title = '';
+      if (linkExpired) {
+        mode = 'expired';
+        text = linkMessage || 'Link expired';
+        title = 'Copy the current link from Price → Settings → Desktop dashboard';
+      } else if (failures >= 3) {
+        mode = 'offline';
+        text = CLOUD ? 'Offline' : 'Phone offline';
+        title = CLOUD ? 'Prices could not be refreshed' : 'Open Price on your iPhone and keep it on the same Wi-Fi';
+      } else if (failures > 0) {
+        mode = 'connecting';
+        text = 'Reconnecting…';
+      }
+      if (el.dataset.state !== mode) el.dataset.state = mode;
+      el.title = title;
+      // The phone-served page hands over to the always-on page instead of
+      // freezing while the phone sleeps.
+      const handoff = !CLOUD && mode === 'offline' && state && state.cloudLink;
+      setHTML($('statusText'), handoff
+        ? 'Phone offline · <a href="' + esc(state.cloudLink) + '">Open always-on view</a>'
+        : esc(text));
+    }
+    function avatarHTML() {
+      const initial = esc(state.profileInitial || 'P');
+      if (CLOUD || !state.hasProfileImage) return '<span>' + initial + '</span>';
+      const active = (state.profiles || []).find((p) => p.isActive);
+      const src = '/profile-image?token=' + encodeURIComponent(token)
+        + '&profile=' + encodeURIComponent(active ? active.id : 'active')
+        + '&v=' + encodeURIComponent(state.profileImageVersion || 'current');
+      return '<img src="' + src + '" alt="" data-fallback="' + initial + '">';
+    }
+    function renderProfile() {
+      setHTML($('avatar'), avatarHTML());
+      const profiles = Array.isArray(state.profiles) ? state.profiles : [];
+      const holder = $('profileControl');
+      if (CLOUD || profiles.length < 2) {
+        setHTML(holder, '<span class="profile-name">' + esc(state.profileName || 'Portfolio') + '</span>');
+        return;
+      }
+      const html = '<span class="select-pill"><select id="profileSelect" aria-label="Profile">'
+        + profiles.map((p) => '<option value="' + esc(p.id) + '"' + (p.isActive ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('')
+        + '</select></span>';
+      setHTML(holder, html);
+      const select = $('profileSelect');
+      const active = profiles.find((p) => p.isActive);
+      if (active && select.value !== active.id && !profileChanging) select.value = active.id;
+      select.disabled = profileChanging;
+      select.onchange = () => switchProfile(select.value);
+    }
+    function renderHero() {
+      const s = state.summary;
+      const t = s.text || {};
+      const net = s.netWorthDisplay || fmtUSD(s.netWorthUSD);
+      setText($('netWorth'), net);
+      // The open tab doubles as a ticker.
+      const title = net + ' · Price';
+      if (document.title !== title) document.title = title;
+      const placeholder = !t.rangeChangePct;
+      const cls = placeholder ? 'muted' : trendClass(s.rangeChangePct);
+      const html = (t.rangeChangeUSD && !placeholder ? '<span class="chg-usd">' + esc(t.rangeChangeUSD) + '</span>' : '')
+        + '<span class="chg-group"><span class="chg-pct ' + cls + '">' + esc(placeholder ? DASH : t.rangeChangePct) + '</span>'
+        + '<span class="chg-tf">· ' + esc(state.rangeLabel) + '</span></span>';
+      setHTML($('change'), html);
+    }
+    function rangeOptions() {
+      return Array.isArray(state.rangeOptions) && state.rangeOptions.length ? state.rangeOptions : ['1H', '4H', '1D', '1W', '1M', 'ALL'];
+    }
+    function renderRangeControl() {
+      const el = $('rangeControl');
+      const options = rangeOptions();
+      const selected = pendingRange || state.rangeLabel;
+      const index = Math.max(0, options.indexOf(selected));
+      const sig = options.join(',');
+      if (el.dataset.sig !== sig) {
+        el.dataset.sig = sig;
+        el.innerHTML = '<span class="seg-thumb" aria-hidden="true"></span>' + options.map((label) =>
+          '<button class="seg" type="button" role="radio" data-range="' + esc(label) + '">' + esc(label) + '</button>').join('');
+        el.querySelectorAll('.seg').forEach((btn) => btn.addEventListener('click', () => setRange(btn.dataset.range)));
+        el.onkeydown = (e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          const opts = rangeOptions();
+          const current = opts.indexOf(pendingRange || state.rangeLabel);
+          // Wraps ALL <-> 1H like the app's range stepping.
+          const next = opts[(current + (e.key === 'ArrowRight' ? 1 : -1) + opts.length) % opts.length];
+          setRange(next);
+          const btn = el.querySelector('[data-range="' + next + '"]');
+          if (btn) btn.focus();
+        };
+      }
+      el.style.setProperty('--count', options.length);
+      el.style.setProperty('--index', index);
+      el.querySelectorAll('.seg').forEach((btn, i) => {
+        const on = i === index;
+        btn.setAttribute('aria-checked', on ? 'true' : 'false');
+        btn.tabIndex = on ? 0 : -1;
+      });
+    }
+
+    // ---------- Overview ----------
+    function stat(label, value, cls, sub) {
+      const none = !value;
+      return '<div class="stat"><div class="micro">' + esc(label) + '</div>'
+        + '<div class="stat-value ' + (none ? 'none' : (cls || '')) + '">' + esc(none ? DASH : value) + '</div>'
+        + (sub ? '<div class="stat-sub">' + esc(sub) + '</div>' : '') + '</div>';
+    }
+    function renderOverview() {
+      const s = state.summary;
+      const t = s.text || {};
+      // Like the app, figures only appear once they mean something: no
+      // debt row without debt, no cost-basis/return without buy prices,
+      // no yield figures until a holding has an APY set.
+      const stats = [stat('Assets', t.totalValue)];
+      if (t.debt) stats.push(stat('Debt', t.debt));
+      stats.push(stat('24h change', t.change24h, trendClass(s.changePct24h)));
+      if (t.costBasis) {
+        stats.push(stat('Cost basis', t.costBasis));
+        stats.push(stat('Total return', t.totalReturnPct, trendClass(s.totalPnLPctVsCost), t.totalReturnUSD));
+      }
+      if (t.hasApy) {
+        stats.push(stat('30D earnings', t.yield30D, 'up'));
+        stats.push(stat('Yield APY', t.apy, 'up'));
+      }
+      setHTML($('stats'), stats.join(''));
+
+      const items = state.allocation || [];
+      const total = items.reduce((sum, item) => sum + (finite(item.valueUSD) ? item.valueUSD : 0), 0);
+      if (!(total > 0)) {
+        setHTML($('allocationBar'), '<div class="alloc-empty" style="flex:1"></div>');
+        setHTML($('allocationLegend'), '<span class="muted">No allocation yet</span>');
+        return;
+      }
+      setHTML($('allocationBar'), items.map((item) =>
+        '<div class="alloc-seg" title="' + esc(item.symbol + ' ' + fmtUSD(item.valueUSD)) + '" style="flex:' + (item.valueUSD / total).toFixed(5)
+        + ' 1 0;background:' + safeColor(item.tint) + '"></div>').join(''));
+      setHTML($('allocationLegend'), items.slice(0, 8).map((item) => {
+        const share = (item.valueUSD / total) * 100;
+        const pct = share < 1 ? '<1%' : Math.round(share) + '%';
+        return '<span class="legend-item"><span class="dot" style="background:' + safeColor(item.tint) + '"></span>'
+          + '<span class="sym">' + esc(item.symbol) + '</span><span class="pct">' + esc(pct) + '</span></span>';
+      }).join(''));
+    }
+
+    // ---------- Tables ----------
+    let iconsVersion = 0;
+    function iconSource(sym) {
+      if (!CLOUD) return '/icon/' + encodeURIComponent(sym) + '?token=' + encodeURIComponent(token) + '&tone=' + theme.name;
+      const data = cloud.icons[sym + '@' + theme.name] || cloud.icons[sym];
+      return data ? 'data:image/png;base64,' + data : null;
+    }
+    function badgeHTML(row) {
+      const sym = String(row.symbol || '').toUpperCase();
+      if (sym === 'USD' || sym === 'EUR') {
+        return '<span class="badge cash ' + sym.toLowerCase() + '" aria-hidden="true">' + (sym === 'USD' ? '$' : '€') + '</span>';
+      }
+      const shape = ['circle', 'rounded', 'free'].includes(row.iconShape) ? row.iconShape : 'circle';
+      const src = iconSource(sym);
+      return '<span class="badge shape-' + shape + '" style="--tint:' + safeColor(row.tint) + '" aria-hidden="true">'
+        + '<span class="badge-letter">' + esc(sym.slice(0, 1)) + '</span>'
+        + (src ? '<img class="badge-img" src="' + src + '" alt="" decoding="async">' : '') + '</span>';
+    }
+    function debtBarHTML(row) {
+      const gross = row.grossValueUSD, free = finite(row.freeCashUSD) ? row.freeCashUSD : row.effectiveValueUSD;
+      if (!finite(gross) || !finite(free) || gross <= free + 0.5) return null;
+      const freePct = Math.max(0, Math.min(100, (Math.max(0, free) / gross) * 100));
+      return '<div class="debt-bar" title="' + esc('Free ' + fmtUSD(free) + ' · Debt ' + fmtUSD(gross - free)) + '">'
+        + '<span style="width:' + freePct.toFixed(2) + '%;background:var(--up)"></span>'
+        + '<span style="width:' + (100 - freePct).toFixed(2) + '%;background:var(--down)"></span></div>';
+    }
+    function slots(tr) {
+      const map = {};
+      tr.querySelectorAll('[data-s]').forEach((el) => { map[el.dataset.s] = el; });
+      return map;
+    }
+    function reconcile(tbody, cache, items, keyOf, create, update) {
+      const seen = new Set();
+      const counts = new Map();
+      let prev = null;
+      for (const item of items) {
+        const base = keyOf(item);
+        const n = (counts.get(base) || 0) + 1;
+        counts.set(base, n);
+        const key = n > 1 ? base + '#' + n : base;
+        seen.add(key);
+        let tr = cache.get(key);
+        if (!tr) { tr = create(item); cache.set(key, tr); }
+        update(tr, item);
+        const expected = prev ? prev.nextElementSibling : tbody.firstElementChild;
+        if (tr !== expected) tbody.insertBefore(tr, expected);
+        prev = tr;
+      }
+      for (const [key, tr] of cache) {
+        if (!seen.has(key)) { tr.remove(); cache.delete(key); }
+      }
+    }
+    function sortHeader(cols, sort, attr) {
+      return '<tr>' + cols.map((c) => {
+        if (!c.sort) return '<th class="' + c.cls + '"><span class="th-label">' + esc(c.label) + '</span></th>';
+        const active = sort.mode === c.sort;
+        const aria = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+        const arrow = active ? (sort.dir === 'asc' ? '↑' : '↓') : '';
+        return '<th class="' + c.cls + '" aria-sort="' + aria + '"><button class="th-btn" type="button" ' + attr + '="' + c.sort + '">'
+          + (c.cls.includes('num') ? '<span class="th-arrow">' + arrow + '</span>' + esc(c.label) : esc(c.label) + '<span class="th-arrow">' + arrow + '</span>')
+          + '</button></th>';
+      }).join('') + '</tr>';
+    }
+    function filterHTML(filter, attr) {
+      const modes = [['all', 'All'], ['crypto', 'Crypto'], ['stocks', 'Stocks']];
+      return '<div class="segmented small" role="radiogroup" aria-label="Filter" style="--count:3">'
+        + modes.map(([m, label]) => '<button class="seg" type="button" role="radio" aria-checked="' + (filter === m) + '" ' + attr + '="' + m + '">' + label + '</button>').join('')
+        + '</div>';
+    }
+    function numericSort(rows, dir, value, name) {
+      return rows.sort((a, b) => {
+        const av = value(a), bv = value(b);
+        if (!finite(av) && !finite(bv)) return name(a).localeCompare(name(b));
+        if (!finite(av)) return 1;
+        if (!finite(bv)) return -1;
+        if (av === bv) return name(a).localeCompare(name(b));
+        return dir === 'asc' ? av - bv : bv - av;
+      });
+    }
+    const isCrypto = (row) => !!row && !row.isStock && !row.isCash;
+    const nameOf = (row) => String(row.displayName || row.name || row.symbol || '').toLocaleLowerCase();
+    const changeOf = (row) => (finite(row.changePct1D) ? row.changePct1D : row.changePct24h);
+
+    // Holdings
+    const HOLDING_COLS = [
+      { label: 'Asset', cls: 'col-asset', sort: 'name' },
+      { label: 'Price', cls: 'num col-price', sort: 'price' },
+      { label: '1D', cls: 'num col-change', sort: 'change' },
+      { label: 'P/L', cls: 'num col-pnl', sort: 'pnl' },
+      { label: '30D Yield', cls: 'num col-yield', sort: 'yield' },
+      { label: 'Trend', cls: 'col-trend' },
+      { label: 'Value', cls: 'num col-value', sort: 'value' }
+    ];
+    const HOLDING_SORT_KEY = 'CryptoFolioDesktopHoldingSort.v2';
+    const HOLDING_FILTER_KEY = 'CryptoFolioDesktopHoldingFilter.v1';
+    const HOLDING_MODES = { value: 'desc', change: 'desc', price: 'desc', pnl: 'desc', yield: 'desc', name: 'asc' };
+    const holdingRows = new Map();
+    let holdingRowsKey = '';
+
+    function holdingSort() {
+      const [mode, dir] = storageGet(HOLDING_SORT_KEY, 'value|desc').split('|');
+      return HOLDING_MODES[mode] ? { mode, dir: dir === 'asc' ? 'asc' : 'desc' } : { mode: 'value', dir: 'desc' };
+    }
+    function holdingFilter() {
+      const v = storageGet(HOLDING_FILTER_KEY, 'all');
+      return ['all', 'crypto', 'stocks'].includes(v) ? v : 'all';
+    }
+    function sortedHoldings(rows) {
+      const { mode, dir } = holdingSort();
+      const list = [...rows];
+      const values = {
+        value: (h) => h.effectiveValueUSD,
+        change: changeOf,
+        price: (h) => h.priceUSD,
+        pnl: (h) => h.pnlPctVsCost,
+        yield: (h) => (finite(h.apyEarnings30DUSD) && h.apyEarnings30DUSD > 0 ? h.apyEarnings30DUSD : null)
+      };
+      if (mode === 'name') return list.sort((a, b) => (dir === 'asc' ? 1 : -1) * nameOf(a).localeCompare(nameOf(b)));
+      return numericSort(list, dir, values[mode] || values.value, nameOf);
+    }
+    function createHoldingRow(h) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td class="col-asset"><div class="asset">' + badgeHTML(h) + '<div class="asset-copy">'
+        + '<div class="asset-name" data-s="name"></div><div class="asset-sub"><span class="only-wide" data-s="amount"></span><span class="only-compact" data-s="unit"></span></div>'
+        + '</div></div></td>'
+        + '<td class="num col-price" data-s="price"></td>'
+        + '<td class="num col-change" data-s="change"></td>'
+        + '<td class="num col-pnl" data-s="pnl"></td>'
+        + '<td class="num col-yield" data-s="yield"></td>'
+        + '<td class="col-trend"><div class="mini" data-s="trend"></div></td>'
+        + '<td class="num col-value"><div class="value-main" data-s="value"></div><div class="value-sub" data-s="sub"></div></td>';
+      tr._s = slots(tr);
+      return tr;
+    }
+    function updateHoldingRow(tr, h) {
+      const s = tr._s, t = h.text || {};
+      const change = changeOf(h);
+      setText(s.name, h.displayName || h.name || h.symbol);
+      setText(s.amount, (t.amount || '') + ' ' + h.symbol);
+      setText(s.unit, t.unit || h.symbol);
+      setText(s.price, t.price || DASH);
+      setClass(s.change, 'num col-change ' + (t.change ? trendClass(change) : 'dash'));
+      setText(s.change, t.change || DASH);
+      setClass(s.pnl, 'num col-pnl ' + (t.pnl ? trendClass(h.pnlPctVsCost) : 'dash'));
+      setText(s.pnl, t.pnl || DASH);
+      setClass(s.yield, 'num col-yield ' + (t.yield30D ? 'up' : 'dash'));
+      setText(s.yield, t.yield30D || DASH);
+      setHTML(s.trend, (h.isCash && debtBarHTML(h)) || sparkSVG(h.sparkline, 88, 28, 1.6, 0.8));
+      setText(s.value, t.value || DASH);
+      const sub = t.gross
+        ? '<span>' + esc(t.gross) + '</span>'
+        : (t.change && !h.isCash ? '<span class="only-compact ' + trendClass(change) + '">' + esc(t.change) + '</span>' : '');
+      setHTML(s.sub, sub);
+    }
+    function renderHoldings() {
+      const all = state.holdings || [];
+      const hasCrypto = all.some(isCrypto), hasStocks = all.some((h) => h.isStock);
+      let filter = holdingFilter();
+      if (!(hasCrypto && hasStocks)) filter = 'all';
+      setHTML($('holdingTools'), hasCrypto && hasStocks ? filterHTML(filter, 'data-holding-filter') : '');
+      const visible = sortedHoldings(filter === 'crypto' ? all.filter(isCrypto) : filter === 'stocks' ? all.filter((h) => h.isStock) : all);
+      setText($('holdingsCount'), visible.length === all.length ? String(all.length) : visible.length + ' of ' + all.length);
+
+      const table = $('holdingsTable');
+      table.classList.toggle('hide-pnl', !all.some((h) => finite(h.pnlPctVsCost)));
+      table.classList.toggle('hide-yield', !all.some((h) => finite(h.apyEarnings30DUSD) && h.apyEarnings30DUSD > 0));
+      setHTML(table.tHead, sortHeader(HOLDING_COLS, holdingSort(), 'data-holding-sort'));
+      const empty = $('holdingsEmpty');
+      empty.hidden = visible.length > 0;
+      table.hidden = !visible.length;
+      if (!visible.length) setText(empty, all.length ? 'No holdings in this filter.' : 'No holdings yet. Add one in Price on your iPhone.');
+      const rowsKey = theme.name + '|' + iconsVersion;
+      if (holdingRowsKey !== rowsKey) {
+        holdingRowsKey = rowsKey;
+        holdingRows.clear();
+        table.tBodies[0].textContent = '';
+      }
+      reconcile(table.tBodies[0], holdingRows, visible, (h) => (h.id || h.symbol) + '|' + h.symbol + '|' + h.iconShape, createHoldingRow, updateHoldingRow);
+    }
+
+    // Watchlist
+    const WATCH_COLS = [
+      { label: 'Asset', cls: 'col-asset', sort: 'name' },
+      { label: 'Market cap', cls: 'num col-cap', sort: 'marketCap' },
+      { label: '1D', cls: 'num col-change', sort: 'change' },
+      { label: 'Trend', cls: 'col-trend' },
+      { label: 'Price', cls: 'num col-value', sort: 'price' }
+    ];
+    const WATCH_SORT_KEY = 'CryptoFolioDesktopWatchSort.v2';
+    const WATCH_FILTER_KEY = 'CryptoFolioDesktopWatchFilter.v1';
+    const WATCH_MODES = { manual: 'asc', name: 'asc', marketCap: 'desc', change: 'desc', price: 'desc' };
+    const watchRows = new Map();
+    let watchRowsKey = '';
+
+    function watchSort() {
+      const [mode, dir] = storageGet(WATCH_SORT_KEY, 'manual|asc').split('|');
+      return WATCH_MODES[mode] ? { mode, dir: dir === 'desc' ? 'desc' : 'asc' } : { mode: 'manual', dir: 'asc' };
+    }
+    function watchFilter() {
+      const v = storageGet(WATCH_FILTER_KEY, 'all');
+      return ['all', 'crypto', 'stocks'].includes(v) ? v : 'all';
+    }
+    function sortedWatches(rows) {
+      const { mode, dir } = watchSort();
+      const list = [...rows];
+      if (mode === 'manual') return list;
+      if (mode === 'name') return list.sort((a, b) => (dir === 'asc' ? 1 : -1) * nameOf(a).localeCompare(nameOf(b)));
+      const values = { marketCap: (w) => w.marketCapUSD, change: changeOf, price: (w) => w.priceUSD };
+      return numericSort(list, dir, values[mode], nameOf);
+    }
+    function createWatchRow(w) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td class="col-asset"><div class="asset">' + badgeHTML(w) + '<div class="asset-copy">'
+        + '<div class="asset-name" data-s="name"></div><div class="asset-sub" data-s="sym"></div></div></div></td>'
+        + '<td class="num col-cap" data-s="cap"></td>'
+        + '<td class="num col-change" data-s="change"></td>'
+        + '<td class="col-trend"><div class="mini" data-s="trend"></div></td>'
+        + '<td class="num col-value"><div class="value-main" data-s="price"></div><div class="value-sub" data-s="sub"></div></td>';
+      tr._s = slots(tr);
+      return tr;
+    }
+    function updateWatchRow(tr, w) {
+      const s = tr._s, t = w.text || {};
+      const change = changeOf(w);
+      setText(s.name, w.displayName || w.name || w.symbol);
+      setText(s.sym, w.symbol);
+      setClass(s.cap, 'num col-cap' + (t.marketCap ? '' : ' dash'));
+      setText(s.cap, t.marketCap || DASH);
+      setClass(s.change, 'num col-change ' + (t.change ? trendClass(change) : 'dash'));
+      setText(s.change, t.change || DASH);
+      setHTML(s.trend, sparkSVG(w.sparkline, 88, 28, 1.6, 1));
+      setText(s.price, t.price || DASH);
+      setHTML(s.sub, '<span class="only-compact ' + (t.change ? trendClass(change) : 'dash') + '">' + esc(t.change || DASH) + '</span>');
+    }
+    function renderWatches() {
+      const all = state.watches || [];
+      const hasCrypto = all.some(isCrypto), hasStocks = all.some((w) => w.isStock);
+      let filter = watchFilter();
+      if (!(hasCrypto && hasStocks)) filter = 'all';
+      const sort = watchSort();
+      setHTML($('watchTools'),
+        (sort.mode !== 'manual' ? '<button class="chip" type="button" data-watch-reset>Custom order</button>' : '')
+        + (hasCrypto && hasStocks ? filterHTML(filter, 'data-watch-filter') : ''));
+      const visible = sortedWatches(filter === 'crypto' ? all.filter(isCrypto) : filter === 'stocks' ? all.filter((w) => w.isStock) : all);
+      setText($('watchCount'), visible.length === all.length ? String(all.length) : visible.length + ' of ' + all.length);
+      const table = $('watchTable');
+      setHTML(table.tHead, sortHeader(WATCH_COLS, sort, 'data-watch-sort'));
+      const empty = $('watchEmpty');
+      empty.hidden = visible.length > 0;
+      table.hidden = !visible.length;
+      if (!visible.length) setText(empty, all.length ? 'No watchlist entries in this filter.' : 'Your watchlist is empty.');
+      const rowsKey = theme.name + '|' + iconsVersion;
+      if (watchRowsKey !== rowsKey) {
+        watchRowsKey = rowsKey;
+        watchRows.clear();
+        table.tBodies[0].textContent = '';
+      }
+      reconcile(table.tBodies[0], watchRows, visible, (w) => (w.id || w.symbol) + '|' + w.symbol + '|' + w.iconShape, createWatchRow, updateWatchRow);
+    }
+
+    function wireTables() {
+      document.addEventListener('click', (e) => {
+        const target = e.target.closest('button');
+        if (!target || !state) return;
+        if (target.dataset.holdingSort) {
+          const mode = target.dataset.holdingSort;
+          const cur = holdingSort();
+          const dir = cur.mode === mode ? (cur.dir === 'asc' ? 'desc' : 'asc') : HOLDING_MODES[mode];
+          storageSet(HOLDING_SORT_KEY, mode + '|' + dir);
+          renderHoldings();
+        } else if (target.dataset.holdingFilter) {
+          storageSet(HOLDING_FILTER_KEY, target.dataset.holdingFilter);
+          renderHoldings();
+        } else if (target.dataset.watchSort) {
+          const mode = target.dataset.watchSort;
+          const cur = watchSort();
+          let next = mode + '|' + WATCH_MODES[mode];
+          if (cur.mode === mode) {
+            // Default direction -> reversed -> back to the app's custom order.
+            next = cur.dir === WATCH_MODES[mode] ? mode + '|' + (cur.dir === 'asc' ? 'desc' : 'asc') : 'manual|asc';
+          }
+          storageSet(WATCH_SORT_KEY, next);
+          renderWatches();
+        } else if (target.hasAttribute('data-watch-reset')) {
+          storageSet(WATCH_SORT_KEY, 'manual|asc');
+          renderWatches();
+        } else if (target.dataset.watchFilter) {
+          storageSet(WATCH_FILTER_KEY, target.dataset.watchFilter);
+          renderWatches();
+        }
+      });
+      // Badge artwork: hide the letter once the icon decodes; on a missing
+      // icon keep the LetterBadge, exactly like CoinBadge.
+      document.addEventListener('load', (e) => {
+        const img = e.target;
+        if (img.classList && img.classList.contains('badge-img')) img.parentElement.classList.add('has-img');
+      }, true);
+      document.addEventListener('error', (e) => {
+        const img = e.target;
+        if (!img.classList) return;
+        if (img.classList.contains('badge-img')) {
+          img.parentElement.classList.remove('has-img');
+          img.remove();
+        } else if (img.dataset && img.dataset.fallback) {
+          const span = document.createElement('span');
+          span.textContent = img.dataset.fallback;
+          img.replaceWith(span);
+        }
+      }, true);
+    }
+
+    // ---------- Render ----------
+    function render() {
+      if (!state) return;
+      fmtDisplay = state.display || fmtDisplay;
+      const themeChanged = applyTheme();
+      renderStatus();
+      renderProfile();
+      renderHero();
+      renderRangeControl();
+      renderChart(themeChanged);
+      renderOverview();
+      renderHoldings();
+      renderWatches();
+    }
+    function schedule(delay) {
+      clearTimeout(pollTimer);
+      if (document.hidden || linkExpired) return;
+      pollTimer = setTimeout(CLOUD ? cloudTick : load, delay);
+    }
+    async function fetchWithTimeout(url, options, ms) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), ms || 6000);
+      try {
+        return await fetch(url, Object.assign({ cache: 'no-store', signal: ctrl.signal }, options || {}));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    // ---------- Phone-served mode ----------
+    function nextDelay() {
+      if (failures) return Math.min(15000, POLL_MS * Math.pow(2, Math.min(failures - 1, 2)));
+      // Chart still hydrating on the phone: check back sooner.
+      return state && state.summary && state.summary.isLoadingChart ? 1000 : POLL_MS;
+    }
+    async function request(path, params) {
+      const q = new URLSearchParams(Object.assign({ token }, params || {}));
+      const res = await fetchWithTimeout(path + '?' + q.toString());
+      if (res.status === 403) { linkExpired = true; throw new Error('expired'); }
+      if (!res.ok) throw new Error(String(res.status));
+      return res.json();
+    }
+    async function load() {
+      if (inFlight) return;
+      inFlight = true;
+      const started = epoch;
+      try {
+        const next = await request('/api/state');
+        failures = 0;
+        if (started === epoch && !pendingRange && !profileChanging) {
+          state = next;
+          render();
+        }
+      } catch (_) {
+        failures += 1;
+        renderStatus();
+      } finally {
+        inFlight = false;
+        schedule(nextDelay());
+      }
+    }
+    async function setRange(label) {
+      if (!state || !label) return;
+      if (label === (pendingRange || state.rangeLabel)) return;
+      if (CLOUD) {
+        cloud.range = label;
+        storageSet('PriceCloudRange.v1', label);
+        state = computeCloudState();
+        render();
+        return;
+      }
+      epoch += 1;
+      pendingRange = label;
+      renderRangeControl();
+      $('chart').classList.add('pending');
+      try {
+        const next = await request('/api/range', { range: label });
+        if (pendingRange === label) {
+          failures = 0;
+          pendingRange = null;
+          state = next;
+          render();
+        }
+      } catch (_) {
+        if (pendingRange === label) {
+          pendingRange = null;
+          failures += 1;
+          renderRangeControl();
+          renderStatus();
+        }
+      } finally {
+        if (!pendingRange) $('chart').classList.remove('pending');
+        schedule(nextDelay());
+      }
+    }
+    async function switchProfile(id) {
+      if (CLOUD || !state || !id || profileChanging) return;
+      const active = (state.profiles || []).find((p) => p.isActive);
+      if (active && active.id === id) return;
+      epoch += 1;
+      profileChanging = true;
+      try {
+        const next = await request('/api/profile', { id });
+        failures = 0;
+        state = next;
+      } catch (_) {
+        failures += 1;
+      } finally {
+        profileChanging = false;
+        render();
+        schedule(nextDelay());
+      }
+    }
+
+    // ---------- Always-on mode ----------
+    // The snapshot is the phone's own LAN payload (holdings, settings,
+    // charts), encrypted on the phone. Prices are refreshed here directly
+    // from Binance (every tick) and CoinGecko (every minute), the same way
+    // the Apple Watch refreshes itself, and every derived number is
+    // recomputed with the app's formulas.
+    const cloud = {
+      payload: null, updated: null, icons: {}, iconsUpdated: null, prices: {},
+      range: storageGet('PriceCloudRange.v1', ''), binanceBase: null, invalidBinance: new Set(),
+      lastSnapshotCheck: 0, lastIconsCheck: 0, lastCG: 0, key: null, built: {}
+    };
+    const SNAPSHOT_EVERY = 60000, ICONS_EVERY = 600000, CG_EVERY = 60000, BINANCE_EVERY = 5000;
+
+    function bytesFromBase64(b64) {
+      const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64.length + 3) % 4));
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+    async function cloudKey() {
+      if (!cloud.key) {
+        cloud.key = await crypto.subtle.importKey('raw', bytesFromBase64(cloudParams.key), 'AES-GCM', false, ['decrypt']);
+      }
+      return cloud.key;
+    }
+    async function openSealed(b64) {
+      const bytes = bytesFromBase64(b64);
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, await cloudKey(), bytes.slice(12));
+      const stream = new Blob([plain]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return JSON.parse(await new Response(stream).text());
+    }
+    async function ckLookup(names, desiredKeys) {
+      const body = { records: names.map((recordName) => ({ recordName })) };
+      if (desiredKeys) body.desiredKeys = desiredKeys;
+      const url = CK_BASE + '/records/lookup?ckAPIToken=' + encodeURIComponent(CK_TOKEN);
+      const send = (type) => fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': type }, body: JSON.stringify(body) }, 10000);
+      // text/plain skips the CORS preflight; fall back to JSON if refused.
+      let res = await send(cloud.ckType || 'text/plain;charset=UTF-8');
+      if (!res.ok && !cloud.ckType && (res.status === 400 || res.status === 415)) {
+        res = await send('application/json');
+        if (res.ok) cloud.ckType = 'application/json';
+      }
+      if (!res.ok) throw new Error('cloudkit ' + res.status);
+      const json = await res.json();
+      return json.records || [];
+    }
+    const fieldValue = (record, name) => (record && record.fields && record.fields[name] ? record.fields[name].value : null);
+
+    async function refreshSnapshot() {
+      const [record] = await ckLookup([cloudParams.record]);
+      if (!record || record.serverErrorCode) {
+        if (record && record.serverErrorCode === 'NOT_FOUND') {
+          linkExpired = true;
+          linkMessage = 'Link turned off';
+        }
+        throw new Error('snapshot');
+      }
+      const updated = fieldValue(record, 'updatedAt');
+      if (cloud.payload && updated === cloud.updated) return false;
+      const sealed = fieldValue(record, 'payload');
+      try {
+        cloud.payload = await openSealed(sealed);
+      } catch (_) {
+        linkExpired = true;
+        linkMessage = 'Link not valid';
+        throw new Error('decrypt');
+      }
+      cloud.updated = updated;
+      storageSet('PriceCloudSnapshot.' + cloudParams.record, sealed);
+      return true;
+    }
+    async function refreshIcons() {
+      const name = cloudParams.record + '-icons';
+      const [meta] = await ckLookup([name], ['updatedAt']);
+      const updated = fieldValue(meta, 'updatedAt');
+      if (!updated || updated === cloud.iconsUpdated) return false;
+      const [record] = await ckLookup([name]);
+      const sealed = fieldValue(record, 'payload');
+      if (!sealed) return false;
+      cloud.icons = await openSealed(sealed);
+      cloud.iconsUpdated = updated;
+      iconsVersion += 1;
+      storageSet('PriceCloudIcons.' + cloudParams.record, sealed);
+      return true;
+    }
+
+    function priceTargets() {
+      const keys = new Set(['EURUSDT']);
+      const st = cloud.payload.state;
+      for (const row of (st.holdings || []).concat(st.watches || [])) if (!row.isCash && row.priceKey) keys.add(row.priceKey);
+      if (st.debt && st.debt.priceKey) keys.add(st.debt.priceKey);
+      if (cloud.payload.denominationPriceKey) keys.add(cloud.payload.denominationPriceKey);
+      const binance = [], coingecko = [];
+      for (const key of keys) {
+        if (/^[A-Z0-9]{2,20}USDT$/.test(key)) {
+          if (!cloud.invalidBinance.has(key)) binance.push(key);
+        } else if (/^cg:[a-z0-9-]+$/.test(key)) {
+          coingecko.push(key.slice(3));
+        }
+      }
+      return { binance, coingecko };
+    }
+    async function binanceTickers(symbols) {
+      const bases = cloud.binanceBase ? [cloud.binanceBase] : ['https://api.binance.com', 'https://api.binance.us'];
+      for (const base of bases) {
+        let res;
+        try {
+          res = await fetchWithTimeout(base + '/api/v3/ticker/24hr?symbols=' + encodeURIComponent(JSON.stringify(symbols)));
+        } catch (_) {
+          continue;
+        }
+        if (res.status === 400 && symbols.length > 1) {
+          // One unknown pair fails the whole batch: find it once, then skip it.
+          const rows = [];
+          await Promise.all(symbols.map(async (sym) => {
+            try {
+              const one = await fetchWithTimeout(base + '/api/v3/ticker/24hr?symbol=' + sym);
+              if (one.ok) rows.push(await one.json());
+              else if (one.status === 400) cloud.invalidBinance.add(sym);
+            } catch (_) {}
+          }));
+          cloud.binanceBase = base;
+          return rows;
+        }
+        if (!res.ok) continue;
+        cloud.binanceBase = base;
+        return res.json();
+      }
+      cloud.binanceBase = null;
+      throw new Error('binance');
+    }
+    async function refreshPrices(includeCoinGecko) {
+      const { binance, coingecko } = priceTargets();
+      let ok = false;
+      if (binance.length) {
+        try {
+          for (const row of await binanceTickers(binance)) {
+            const price = parseFloat(row.lastPrice);
+            if (!(price > 0)) continue;
+            cloud.prices[row.symbol] = {
+              price,
+              change: parseFloat(row.priceChangePercent),
+              high: parseFloat(row.highPrice),
+              low: parseFloat(row.lowPrice)
+            };
+          }
+          ok = true;
+        } catch (_) {}
+      } else {
+        ok = true;
+      }
+      if (includeCoinGecko && coingecko.length) {
+        try {
+          const res = await fetchWithTimeout('https://api.coingecko.com/api/v3/simple/price?ids=' + encodeURIComponent(coingecko.join(','))
+            + '&vs_currencies=usd&include_24hr_change=true&include_market_cap=true');
+          if (res.ok) {
+            const json = await res.json();
+            for (const id of Object.keys(json)) {
+              const q = json[id];
+              if (!(q.usd > 0)) continue;
+              cloud.prices['cg:' + id] = { price: q.usd, change: q.usd_24h_change, marketCap: q.usd_market_cap };
+            }
+            cloud.lastCG = Date.now();
+          }
+        } catch (_) {}
+      }
+      return ok;
+    }
+
+    // Timeframes the phone never loaded: rebuild the aggregate here the way
+    // buildTotalSparkline does for non-ALL ranges (same candle intervals,
+    // union time grid, linear interpolation, flat cash/unpriced holdings,
+    // debt as a flat baseline).
+    const RANGE_SPEC = {
+      '1H': { interval: '1m', limit: 60, days: '1', span: 3600 },
+      '4H': { interval: '5m', limit: 48, days: '1', span: 14400 },
+      '1D': { interval: '1h', limit: 24, days: '1', span: 86400 },
+      '1W': { interval: '4h', limit: 42, days: '7', span: 604800 },
+      '1M': { interval: '1d', limit: 30, days: '30', span: 2592000 }
+    };
+    const cgChartCache = new Map();
+    const building = new Set();
+    function downsample(points, limit) {
+      if (points.length <= limit) return points;
+      const step = (points.length - 1) / (limit - 1);
+      return Array.from({ length: limit }, (_, i) => points[Math.round(i * step)]);
+    }
+    async function binanceKlines(symbol, interval, limit) {
+      const base = cloud.binanceBase || 'https://api.binance.com';
+      const res = await fetchWithTimeout(base + '/api/v3/klines?symbol=' + symbol + '&interval=' + interval + '&limit=' + limit, null, 10000);
+      if (!res.ok) throw new Error('klines');
+      return (await res.json()).map((r) => ({ t: r[0] / 1000, v: parseFloat(r[4]) })).filter((p) => finite(p.v));
+    }
+    async function coingeckoChart(id, days) {
+      const key = id + '|' + days;
+      const hit = cgChartCache.get(key);
+      if (hit && Date.now() - hit.at < 300000) return hit.prices;
+      const res = await fetchWithTimeout('https://api.coingecko.com/api/v3/coins/' + encodeURIComponent(id) + '/market_chart?vs_currency=usd&days=' + days, null, 10000);
+      if (!res.ok) throw new Error('chart');
+      const prices = ((await res.json()).prices || []).map((p) => ({ t: p[0] / 1000, v: p[1] })).filter((p) => finite(p.v));
+      cgChartCache.set(key, { at: Date.now(), prices });
+      return prices;
+    }
+    function aggregateHistory(byId, holdings, debtUSD) {
+      const nowT = Date.now() / 1000;
+      const series = holdings.map((h) => {
+        const pts = (byId[h.id] || []).slice();
+        if (pts.length && finite(h.priceUSD) && h.priceUSD > 0) pts.push({ t: nowT, v: h.priceUSD });
+        return { amount: h.amount, pts, flat: finite(h.valueUSD) ? h.valueUSD : 0 };
+      });
+      const grid = Array.from(new Set(series.flatMap((s) => (s.pts.length > 1 ? s.pts.map((p) => p.t) : [])))).sort((a, b) => a - b);
+      if (grid.length < 2) return [];
+      const cursors = series.map(() => 1);
+      return downsample(grid.map((t) => {
+        let sum = 0;
+        series.forEach((s, i) => {
+          if (s.pts.length < 2) { sum += s.flat; return; }
+          if (t <= s.pts[0].t) { sum += s.amount * s.pts[0].v; return; }
+          let j = cursors[i];
+          while (j < s.pts.length - 1 && s.pts[j].t < t) j++;
+          cursors[i] = j;
+          const a = s.pts[j - 1], b = s.pts[j];
+          const f = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 1;
+          sum += s.amount * (a.v + (b.v - a.v) * f);
+        });
+        return { t, v: sum - debtUSD };
+      }), 180);
+    }
+    async function ensureHistory(range) {
+      const spec = RANGE_SPEC[range];
+      if (!spec || building.has(range) || !state) return;
+      const have = cloud.built[range];
+      if (have && Date.now() - have.at < 300000) return;
+      building.add(range);
+      const byId = {};
+      try {
+        await Promise.all((state.holdings || []).map(async (h) => {
+          try {
+            if (h.isCash) return;
+            if (/^[A-Z0-9]{2,20}USDT$/.test(h.priceKey) && !cloud.invalidBinance.has(h.priceKey)) {
+              byId[h.id] = await binanceKlines(h.priceKey, spec.interval, spec.limit);
+            } else if (/^cg:[a-z0-9-]+$/.test(h.priceKey)) {
+              const all = await coingeckoChart(h.priceKey.slice(3), spec.days);
+              const end = all.length ? all[all.length - 1].t : 0;
+              byId[h.id] = all.filter((p) => p.t >= end - spec.span);
+            }
+          } catch (_) {}
+        }));
+        cloud.built[range] = { at: Date.now(), points: aggregateHistory(byId, state.holdings || [], state.summary.debtUSD || 0) };
+      } finally {
+        building.delete(range);
+      }
+      if (state && state.rangeLabel === range) {
+        state = computeCloudState();
+        render();
+      }
+    }
+
+    function patchSpark(points, price) {
+      if (!Array.isArray(points) || points.length < 2 || !(price > 0)) return points;
+      const copy = points.slice();
+      copy[copy.length - 1] = { t: copy[copy.length - 1].t, v: price };
+      return copy;
+    }
+    function computeCloudState() {
+      const snap = cloud.payload;
+      const base = snap.state;
+      const live = cloud.prices;
+      const display = Object.assign({}, base.display);
+      // "Auto" follows the computer this page is open on, not the phone.
+      if (display.appAppearance === 'auto') display.resolvedAppearance = prefersLight.matches ? 'light' : 'dark';
+      const fxQuote = live.EURUSDT;
+      const fx = fxQuote && fxQuote.price > 0 ? fxQuote.price : display.usdPerEUR;
+      display.usdPerEUR = fx;
+      if (display.denominationSymbol && snap.denominationPriceKey) {
+        const q = live[snap.denominationPriceKey];
+        if (q && q.price > 0) display.denominationPriceUSD = q.price;
+      }
+      fmtDisplay = display;
+      const shownCash = display.currency === 'EUR' ? 'EUR' : 'USD';
+
+      const holdings = (base.holdings || []).map((h) => {
+        const q = h.isCash ? null : live[h.priceKey];
+        const unit = h.symbol === 'USD' && h.isCash ? 1
+          : h.symbol === 'EUR' && h.isCash ? fx
+          : (q && q.price > 0 ? q.price : h.priceUSD);
+        const value = finite(unit) ? h.amount * unit : h.valueUSD;
+        const change = q && finite(q.change) ? q.change : changeOf(h);
+        const pnl = !h.isCash && h.avgPriceUSD > 0 && finite(unit) ? (unit - h.avgPriceUSD) / h.avgPriceUSD * 100 : null;
+        const apy30 = h.apyPct > 0 && value > 0 ? value * h.apyPct / 100 * 30 / 365 : null;
+        return Object.assign({}, h, {
+          priceUSD: unit, valueUSD: value, effectiveValueUSD: value, grossValueUSD: null, freeCashUSD: null,
+          changePct1D: change, pnlPctVsCost: pnl, apyEarnings30DUSD: apy30,
+          marketCapUSD: q && q.marketCap > 0 ? q.marketCap : h.marketCapUSD,
+          sparkline: q ? patchSpark(h.sparkline, unit) : h.sparkline
+        });
+      });
+
+      // Debt, valued like PortfolioStore.debtUSD and absorbed by cash like
+      // allocateDebt(): matching currency first, largest first, then spill.
+      const debt = base.debt || {};
+      let debtUSD = 0;
+      if (debt.hasValue) {
+        if (debt.priceKey) {
+          const q = live[debt.priceKey];
+          debtUSD = q && q.price > 0 ? debt.amount * q.price : debt.valueUSD;
+        } else {
+          debtUSD = debt.currency === 'EUR' ? debt.amount * fx : debt.amount;
+        }
+      }
+      if (debtUSD > 0) {
+        const preferred = debt.tokenSymbol ? null : debt.currency;
+        const cash = holdings.filter((h) => (h.symbol === 'USD' || h.symbol === 'EUR') && h.valueUSD > 0);
+        const byValue = (a, b) => b.valueUSD - a.valueUSD;
+        let remaining = debtUSD;
+        for (const h of cash.filter((c) => c.symbol === preferred).sort(byValue).concat(cash.filter((c) => c.symbol !== preferred).sort(byValue))) {
+          if (remaining <= 0) break;
+          const absorb = Math.min(remaining, h.valueUSD);
+          h.effectiveValueUSD = h.valueUSD - absorb;
+          h.grossValueUSD = h.valueUSD;
+          h.freeCashUSD = h.effectiveValueUSD;
+          remaining -= absorb;
+        }
+      }
+
+      let totalValue = 0, prev = 0, now = 0, basis = 0, basisCurrent = 0, apyBase = 0, apyEarnings = 0;
+      for (const h of holdings) {
+        totalValue += finite(h.valueUSD) ? h.valueUSD : 0;
+        if (finite(h.priceUSD) && h.priceUSD > 0) {
+          const c = !h.isCash && finite(h.changePct1D) ? h.changePct1D : 0;
+          prev += h.priceUSD / (1 + c / 100) * h.amount;
+          now += h.priceUSD * h.amount;
+        }
+        if (!h.isCash && h.avgPriceUSD > 0) {
+          basis += h.amount * h.avgPriceUSD;
+          basisCurrent += h.valueUSD;
+        }
+        if (h.apyPct > 0) {
+          apyBase += h.valueUSD;
+          apyEarnings += h.apyEarnings30DUSD || 0;
+        }
+      }
+      const netWorth = totalValue - debtUSD;
+      const change24h = prev > 0 ? (now - prev) / prev * 100 : null;
+      const totalReturnPct = basis > 0 ? (basisCurrent - basis) / basis * 100 : null;
+      const weightedApy = apyBase > 0 ? apyEarnings / apyBase * 365 / 30 * 100 : null;
+
+      // Portfolio chart: the phone's series for this timeframe with the
+      // right edge moved to the live net worth.
+      const range = (base.rangeOptions || ['1H', '4H', '1D', '1W', '1M', 'ALL']).includes(cloud.range) ? cloud.range : base.rangeLabel;
+      let points = ((snap.series || {})[range] || (range === base.rangeLabel ? base.portfolioSparkline : []) || []).slice();
+      let historyLoading = false;
+      if (points.length < 2 && RANGE_SPEC[range]) {
+        const built = cloud.built[range];
+        if (built && built.points.length >= 2) points = built.points.slice();
+        else historyLoading = true;
+        // Fetch (or refresh) after this render; ensureHistory re-renders.
+        setTimeout(() => ensureHistory(range), 0);
+      }
+      if (points.length >= 2) {
+        const nowT = Date.now() / 1000;
+        const last = points[points.length - 1];
+        if (nowT - last.t < 120) points[points.length - 1] = { t: nowT, v: netWorth };
+        else points.push({ t: nowT, v: netWorth });
+      }
+      let rangeChangePct = null, rangeChangeUSD = null;
+      if (range === 'ALL') {
+        if (basis > 0) { rangeChangeUSD = basisCurrent - basis; rangeChangePct = rangeChangeUSD / basis * 100; }
+      } else if (points.length >= 2 && points[0].v > 0) {
+        rangeChangeUSD = points[points.length - 1].v - points[0].v;
+        rangeChangePct = rangeChangeUSD / points[0].v * 100;
+      }
+
+      for (const h of holdings) {
+        const unitPrice = h.priceUSD;
+        const redundantCash = !denomOn() && h.isCash && h.symbol === shownCash;
+        const amount = fmtCompactAmount(h.amount);
+        let unit = amount + ' ' + h.symbol;
+        if (unitPrice > 0 && !redundantCash) unit += ' · ' + (h.isCash ? fmtCashRate(h.symbol, unitPrice) : fmtCompactPrice(unitPrice));
+        const selfDenominated = denomOn() && display.denominationSymbol === h.symbol;
+        h.text = {
+          unit,
+          amount,
+          price: unitPrice > 0 ? (h.isCash ? fmtCashRate(h.symbol, unitPrice) : fmtPrice(unitPrice)) : DASH,
+          value: !(unitPrice > 0) && h.effectiveValueUSD <= 0 ? DASH
+            : selfDenominated ? amount + ' ' + h.symbol : fmtCompactUSD(h.effectiveValueUSD),
+          gross: finite(h.grossValueUSD) && h.grossValueUSD > h.effectiveValueUSD + 0.5 ? 'of ' + fmtCompactUSD(h.grossValueUSD) : null,
+          change: finite(h.changePct1D) ? fmtPct(h.changePct1D) : null,
+          pnl: finite(h.pnlPctVsCost) ? fmtPct(h.pnlPctVsCost) : null,
+          yield30D: h.apyEarnings30DUSD > 0 ? fmtCompactUSD(h.apyEarnings30DUSD) : null
+        };
+      }
+      holdings.sort((a, b) => b.effectiveValueUSD - a.effectiveValueUSD);
+
+      const watches = (base.watches || []).map((w) => {
+        const q = w.isCash ? null : live[w.priceKey];
+        const price = w.symbol === 'EUR' && w.isCash ? fx : w.symbol === 'USD' && w.isCash ? 1 : (q && q.price > 0 ? q.price : w.priceUSD);
+        const change = q && finite(q.change) ? q.change : changeOf(w);
+        const cap = q && q.marketCap > 0 ? q.marketCap : w.marketCapUSD;
+        return Object.assign({}, w, {
+          priceUSD: price, changePct1D: change, marketCapUSD: cap,
+          sparkline: q ? patchSpark(w.sparkline, price) : w.sparkline,
+          text: {
+            price: price > 0 ? (w.isCash ? fmtCashRate(w.symbol, price) : fmtPrice(price)) : DASH,
+            change: finite(change) ? fmtPct(change) : null,
+            marketCap: cap > 0 ? fmtCompactUSD(cap) : null
+          }
+        });
+      });
+
+      return Object.assign({}, base, {
+        display,
+        rangeLabel: range,
+        hasProfileImage: false,
+        profiles: [],
+        holdings,
+        watches,
+        allocation: holdings.filter((h) => h.effectiveValueUSD > 0).map((h) => ({
+          symbol: h.symbol, name: h.displayName, valueUSD: h.effectiveValueUSD, tint: h.tint
+        })),
+        portfolioSparkline: points,
+        summary: Object.assign({}, base.summary, {
+          netWorthUSD: netWorth,
+          netWorthDisplay: fmtNetWorth(netWorth),
+          totalValueUSD: totalValue,
+          debtUSD,
+          changePct24h: change24h,
+          rangeChangePct,
+          rangeChangeUSD,
+          totalPnLPctVsCost: totalReturnPct,
+          totalApyEarnings30DUSD: apyEarnings,
+          weightedApyPct: weightedApy,
+          isLoadingChart: historyLoading,
+          text: {
+            totalValue: fmtCompactUSD(totalValue),
+            debt: debtUSD > 0 ? '−' + fmtCompactUSD(debtUSD) : null,
+            costBasis: basis > 0 ? fmtCompactUSD(basis) : null,
+            totalReturnPct: finite(totalReturnPct) ? fmtPct(totalReturnPct) : null,
+            totalReturnUSD: basis > 0 ? fmtSignedPillUSD(basisCurrent - basis) : null,
+            rangeChangeUSD: finite(rangeChangeUSD) ? fmtSignedPillUSD(rangeChangeUSD) : null,
+            rangeChangePct: finite(rangeChangePct) ? fmtPct(rangeChangePct) : null,
+            yield30D: apyEarnings > 0 ? fmtCompactUSD(apyEarnings) : null,
+            apy: finite(weightedApy) ? fmtPct(weightedApy, false) : null,
+            change24h: finite(change24h) ? fmtPct(change24h) : null,
+            hasApy: holdings.some((h) => h.apyPct > 0)
+          }
+        })
+      });
+    }
+    async function cloudTick() {
+      if (inFlight) return;
+      inFlight = true;
+      let changed = false;
+      try {
+        const nowMs = Date.now();
+        if (!cloud.payload || nowMs - cloud.lastSnapshotCheck >= SNAPSHOT_EVERY) {
+          cloud.lastSnapshotCheck = nowMs;
+          try { changed = (await refreshSnapshot()) || changed; } catch (_) { if (!cloud.payload) throw _; }
+        }
+        if (nowMs - cloud.lastIconsCheck >= ICONS_EVERY) {
+          cloud.lastIconsCheck = nowMs;
+          try { changed = (await refreshIcons()) || changed; } catch (_) {}
+        }
+        const ok = await refreshPrices(nowMs - cloud.lastCG >= CG_EVERY);
+        failures = ok ? 0 : failures + 1;
+        state = computeCloudState();
+        render();
+      } catch (_) {
+        failures += 1;
+        if (state) render(); else renderStatus();
+      } finally {
+        inFlight = false;
+        schedule(failures ? Math.min(30000, BINANCE_EVERY * Math.pow(2, Math.min(failures, 3))) : BINANCE_EVERY);
+      }
+    }
+    async function cloudBoot() {
+      // Paint the last snapshot this browser saw right away, then refresh.
+      const cachedSnapshot = storageGet('PriceCloudSnapshot.' + cloudParams.record, '');
+      const cachedIcons = storageGet('PriceCloudIcons.' + cloudParams.record, '');
+      try { if (cachedIcons) { cloud.icons = await openSealed(cachedIcons); iconsVersion += 1; } } catch (_) {}
+      try {
+        if (cachedSnapshot) {
+          cloud.payload = await openSealed(cachedSnapshot);
+          state = computeCloudState();
+          render();
+        }
+      } catch (_) {}
+      cloudTick();
+    }
+
+    function boot() {
+      wireChart();
+      wireTables();
+      if (CLOUD) {
+        if (!window.crypto || !crypto.subtle || typeof DecompressionStream === 'undefined') {
+          linkExpired = true;
+          linkMessage = 'This browser is too old';
+          renderStatus();
+          return;
+        }
+        cloudBoot();
+      } else {
+        try {
+          const initial = JSON.parse($('initialState').textContent);
+          if (initial && initial.summary) state = initial;
+        } catch (_) {}
+        if (state) {
+          render();
+          schedule(POLL_MS);
+        } else {
+          load();
+        }
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) clearTimeout(pollTimer);
+        else if (CLOUD) cloudTick();
+        else load();
+      });
+      const rerender = () => { if (state) { chart.sig = ''; render(); } };
+      if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', rerender);
+      if (CLOUD && prefersLight.addEventListener) {
+        prefersLight.addEventListener('change', () => { if (cloud.payload) { state = computeCloudState(); rerender(); } });
+      }
+    }
+    boot();
+  })();
+  </script>
+</body>
+</html>

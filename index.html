@@ -809,6 +809,8 @@
     })();
     const CK_BASE = 'https://api.apple-cloudkit.com/database/1/iCloud.com.pie.CryptoFolio/production/public';
     const CK_TOKEN = 'ca55220cc6f0310c62b41f22d0bd32b45253c39d3dd07da9638413d8867719dc';
+    // Stamped by Tools/deploy-dashboard.sh, which also writes version.txt.
+    const BUILD = 'ba0495535c82';
 
     let state = null;
     let inFlight = false;
@@ -2675,6 +2677,18 @@
         if (document.hidden) clearTimeout(pollTimer);
         else cloudTick();
       });
+      // A dashboard tab can stay open for days: pick up new deploys by
+      // itself (GitHub Pages lets browsers cache the page for 10 minutes).
+      if (!BUILD.startsWith('__')) {
+        setInterval(async () => {
+          if (document.hidden) return;
+          try {
+            const res = await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' });
+            const latest = res.ok ? (await res.text()).trim() : '';
+            if (latest && latest !== BUILD) location.reload();
+          } catch (_) {}
+        }, 600000);
+      }
       const rerender = () => { if (state) { portfolioChart.sig = ''; render(); } };
       if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', rerender);
       if (prefersLight.addEventListener) {

@@ -446,10 +446,12 @@
     .col-trend { width: 112px; }
     .col-value { width: 132px; }
     .watch-table .col-value { width: 140px; }
+    /* The column header is its own table above the scroller (same fixed
+       column widths), not a sticky row inside it: sticky table cells let
+       rows peek through above them in WebKit while scrolling. */
+    .table-columns { flex: 0 0 auto; }
+    .table-columns[hidden] { display: none; }
     th {
-      position: sticky;
-      top: 0;
-      z-index: 1;
       background: var(--surface);
       text-align: left;
       padding: 0;
@@ -552,7 +554,7 @@
       .watch-table .col-cap { display: none; }
     }
     @container (max-width: 545px) {
-      thead { display: none; }
+      .table-columns { display: none; }
       .col-price, .col-change, .col-cap { display: none; }
       .only-wide { display: none; }
       .only-compact { display: inline; }
@@ -655,8 +657,9 @@
           <div class="section-head"><h2>Holdings</h2><span class="count" id="holdingsCount"></span></div>
           <div class="tools" id="holdingTools"></div>
         </div>
-        <div class="table-scroll">
-          <table class="holdings-table" id="holdingsTable"><thead></thead><tbody></tbody></table>
+        <div class="table-columns" id="holdingsColumns"><table class="holdings-table" id="holdingsHead"><thead></thead></table></div>
+        <div class="table-scroll" id="holdingsScroll">
+          <table class="holdings-table" id="holdingsTable"><tbody></tbody></table>
           <div class="empty" id="holdingsEmpty" hidden></div>
         </div>
       </section>
@@ -666,8 +669,9 @@
           <div class="section-head"><h2>Watchlist</h2><span class="count" id="watchCount"></span></div>
           <div class="tools" id="watchTools"></div>
         </div>
-        <div class="table-scroll">
-          <table class="watch-table" id="watchTable"><thead></thead><tbody></tbody></table>
+        <div class="table-columns" id="watchColumns"><table class="watch-table" id="watchHead"><thead></thead></table></div>
+        <div class="table-scroll" id="watchScroll">
+          <table class="watch-table" id="watchTable"><tbody></tbody></table>
           <div class="empty" id="watchEmpty" hidden></div>
         </div>
       </section>
@@ -689,10 +693,27 @@
     // phone's /api. Opened from the always-on link (#r=<record>&k=<key>):
     // read the encrypted iCloud snapshot and reprice it live ourselves, so
     // the page keeps working while the phone sleeps.
+    // The key arrives once in the link's fragment, moves into this browser's
+    // storage, and is stripped from the address bar so screenshots, screen
+    // shares and copied URLs never carry it. `#r=<record>` stays, so reloads
+    // and bookmarks keep working in this browser.
     const cloudParams = (() => {
       const params = new URLSearchParams(location.hash.slice(1));
-      const record = params.get('r'), key = params.get('k');
-      return record && key && /^[A-Za-z0-9_-]+$/.test(record) ? { record, key } : null;
+      const record = params.get('r');
+      if (!record || !/^[A-Za-z0-9_-]+$/.test(record)) return null;
+      const storeKey = 'PriceCloudKey.' + record;
+      let key = params.get('k');
+      try {
+        if (key) {
+          localStorage.setItem(storeKey, key);
+          if (localStorage.getItem(storeKey) === key) {
+            history.replaceState(null, '', location.pathname + location.search + '#r=' + record);
+          }
+        } else {
+          key = localStorage.getItem(storeKey);
+        }
+      } catch (_) {}
+      return { record, key: key || null, storeKey };
     })();
     const CLOUD = !!cloudParams;
     const token = CLOUD ? '' : (location.pathname.split('/').filter(Boolean).pop() || '');
@@ -1536,13 +1557,18 @@
       const visible = sortedHoldings(filter === 'crypto' ? all.filter(isCrypto) : filter === 'stocks' ? all.filter((h) => h.isStock) : all);
       setText($('holdingsCount'), visible.length === all.length ? String(all.length) : visible.length + ' of ' + all.length);
 
-      const table = $('holdingsTable');
-      table.classList.toggle('hide-pnl', !all.some((h) => finite(h.pnlPctVsCost)));
-      table.classList.toggle('hide-yield', !all.some((h) => finite(h.apyEarnings30DUSD) && h.apyEarnings30DUSD > 0));
-      setHTML(table.tHead, sortHeader(HOLDING_COLS, holdingSort(), 'data-holding-sort'));
+      const table = $('holdingsTable'), head = $('holdingsHead');
+      const hidePnl = !all.some((h) => finite(h.pnlPctVsCost));
+      const hideYield = !all.some((h) => finite(h.apyEarnings30DUSD) && h.apyEarnings30DUSD > 0);
+      for (const t of [table, head]) {
+        t.classList.toggle('hide-pnl', hidePnl);
+        t.classList.toggle('hide-yield', hideYield);
+      }
+      setHTML(head.tHead, sortHeader(HOLDING_COLS, holdingSort(), 'data-holding-sort'));
       const empty = $('holdingsEmpty');
       empty.hidden = visible.length > 0;
       table.hidden = !visible.length;
+      $('holdingsColumns').hidden = !visible.length;
       if (!visible.length) setText(empty, all.length ? 'No holdings in this filter.' : 'No holdings yet. Add one in Price on your iPhone.');
       const rowsKey = theme.name + '|' + iconsVersion;
       if (holdingRowsKey !== rowsKey) {
@@ -1619,10 +1645,11 @@
       const visible = sortedWatches(filter === 'crypto' ? all.filter(isCrypto) : filter === 'stocks' ? all.filter((w) => w.isStock) : all);
       setText($('watchCount'), visible.length === all.length ? String(all.length) : visible.length + ' of ' + all.length);
       const table = $('watchTable');
-      setHTML(table.tHead, sortHeader(WATCH_COLS, sort, 'data-watch-sort'));
+      setHTML($('watchHead').tHead, sortHeader(WATCH_COLS, sort, 'data-watch-sort'));
       const empty = $('watchEmpty');
       empty.hidden = visible.length > 0;
       table.hidden = !visible.length;
+      $('watchColumns').hidden = !visible.length;
       if (!visible.length) setText(empty, all.length ? 'No watchlist entries in this filter.' : 'Your watchlist is empty.');
       const rowsKey = theme.name + '|' + iconsVersion;
       if (watchRowsKey !== rowsKey) {
@@ -1633,7 +1660,21 @@
       reconcile(table.tBodies[0], watchRows, visible, (w) => (w.id || w.symbol) + '|' + w.symbol + '|' + w.iconShape, createWatchRow, updateWatchRow);
     }
 
+    // A classic (non-overlay) scrollbar narrows the body table; pad the
+    // header table by the same amount so the columns stay aligned.
+    function alignColumns() {
+      for (const [scrollId, columnsId] of [['holdingsScroll', 'holdingsColumns'], ['watchScroll', 'watchColumns']]) {
+        const scroller = $(scrollId);
+        const gutter = Math.max(0, scroller.offsetWidth - scroller.clientWidth);
+        const pad = gutter ? gutter + 'px' : '';
+        if ($(columnsId).style.paddingRight !== pad) $(columnsId).style.paddingRight = pad;
+      }
+    }
+
     function wireTables() {
+      const observer = new ResizeObserver(alignColumns);
+      observer.observe($('holdingsScroll'));
+      observer.observe($('watchScroll'));
       document.addEventListener('click', (e) => {
         const target = e.target.closest('button');
         if (!target || !state) return;
@@ -1697,6 +1738,7 @@
       renderOverview();
       renderHoldings();
       renderWatches();
+      alignColumns();
     }
     function schedule(delay) {
       clearTimeout(pollTimer);
@@ -1852,6 +1894,12 @@
         if (record && record.serverErrorCode === 'NOT_FOUND') {
           linkExpired = true;
           linkMessage = 'Link turned off';
+          // Turned off or replaced on the phone: forget everything kept here.
+          try {
+            localStorage.removeItem(cloudParams.storeKey);
+            localStorage.removeItem('PriceCloudSnapshot.' + cloudParams.record);
+            localStorage.removeItem('PriceCloudIcons.' + cloudParams.record);
+          } catch (_) {}
         }
         throw new Error('snapshot');
       }
@@ -2295,6 +2343,12 @@
         if (!window.crypto || !crypto.subtle || typeof DecompressionStream === 'undefined') {
           linkExpired = true;
           linkMessage = 'This browser is too old';
+          renderStatus();
+          return;
+        }
+        if (!cloudParams.key) {
+          linkExpired = true;
+          linkMessage = 'Open the full link from Price on your iPhone';
           renderStatus();
           return;
         }

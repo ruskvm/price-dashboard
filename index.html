@@ -137,6 +137,37 @@
       font-size: 14px;
     }
     .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .select-pill { position: relative; min-width: 0; }
+    .select-pill select {
+      appearance: none;
+      -webkit-appearance: none;
+      border: 0;
+      border-radius: 999px;
+      background: var(--fill);
+      color: var(--text);
+      font-size: 14px;
+      padding: 8px 32px 8px 14px;
+      max-width: 240px;
+      cursor: pointer;
+      text-overflow: ellipsis;
+    }
+    .select-pill select:hover { background: var(--separator); }
+    /* Browsers treat a clicked <select> as keyboard focus and ring it; a
+       tone shift reads as focus without the white outline. */
+    .select-pill select:focus,
+    .select-pill select:focus-visible { outline: none; box-shadow: none; background: var(--separator); }
+    .select-pill::after {
+      content: "";
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: translateY(-70%) rotate(45deg);
+      pointer-events: none;
+    }
     .profile-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
 
     /* Layout */
@@ -414,6 +445,84 @@
       height: 2px;
       background: var(--text);
     }
+    /* Sort menu + map button, the iOS watchlist header controls. */
+    .icon-btn {
+      appearance: none;
+      border: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--fill);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .icon-btn:hover, .icon-btn[aria-expanded="true"] { background: var(--separator); }
+    .icon-btn:disabled { opacity: 0.4; cursor: default; }
+    .icon-btn .aa { font-size: 12px; letter-spacing: -0.2px; }
+    .menu {
+      position: fixed;
+      z-index: 20;
+      min-width: 200px;
+      padding: 6px;
+      border-radius: 14px;
+      background: var(--raised);
+      box-shadow: inset 0 0 0 1px var(--separator);
+      display: grid;
+    }
+    .menu-item {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 9px 10px;
+      border-radius: 9px;
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .menu-item:hover { background: var(--fill); }
+    .menu-mark { color: var(--secondary); min-width: 12px; text-align: right; }
+    .menu-sep { height: 1px; background: var(--separator); margin: 4px 6px; }
+
+    /* Watch map (WatchlistHeatMapSheet). */
+    .watchmap { width: 100%; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+    .watchmap[hidden] { display: none; }
+    .map-head { display: flex; align-items: center; gap: 12px; }
+    .map-heading { flex: 1 1 auto; min-width: 0; }
+    .map-kicker { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: color-mix(in srgb, var(--text) 58%, transparent); }
+    .map-title { font-size: 28px; letter-spacing: -0.4px; margin-top: 4px; }
+    .map-cap { text-align: right; white-space: nowrap; }
+    .map-cap .k { font-size: 10px; letter-spacing: 1.2px; color: color-mix(in srgb, var(--text) 45%, transparent); }
+    .map-cap .v { font-size: 17px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .map { position: relative; height: max(420px, calc(100vh - 160px)); border-radius: 22px; overflow: hidden; background: rgba(0, 0, 0, 0.18); }
+    .tile {
+      position: absolute;
+      appearance: none;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      font: inherit;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.32);
+      cursor: pointer;
+      overflow: hidden;
+      transition: background-color 0.3s ease, filter 0.15s ease;
+    }
+    .tile:hover { filter: brightness(1.08); }
+    .tile .badge { flex: 0 0 auto; }
+    .tile .t-sym, .tile .t-pct, .tile .t-abbr { line-height: 1.1; white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .tile .t-pct { opacity: 0.94; }
+
     tbody tr { cursor: pointer; }
     tbody tr:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; border-radius: 0; }
     .table-scroll {
@@ -746,6 +855,18 @@
       </section>
     </main>
 
+    <section class="watchmap" id="watchmap" hidden aria-label="Watch map">
+      <div class="map-head">
+        <button class="back-btn" id="mapBack" type="button" aria-label="Back to dashboard">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="map-heading"><div class="map-kicker">Watch map</div><div class="map-title" id="mapTitle"></div></div>
+        <div class="map-cap" id="mapCap"></div>
+      </div>
+      <div class="map" id="mapArea"></div>
+      <div class="empty" id="mapEmpty" hidden>No watchlist entries</div>
+    </section>
+
     <section class="detail" id="detail" hidden aria-label="Asset">
       <div class="detail-main">
         <div class="detail-head">
@@ -810,7 +931,7 @@
     const CK_BASE = 'https://api.apple-cloudkit.com/database/1/iCloud.com.pie.CryptoFolio/production/public';
     const CK_TOKEN = 'ca55220cc6f0310c62b41f22d0bd32b45253c39d3dd07da9638413d8867719dc';
     // Stamped by Tools/deploy-dashboard.sh, which also writes version.txt.
-    const BUILD = 'b89c0545f8a9';
+    const BUILD = 'ca047dfd5215';
 
     let state = null;
     let inFlight = false;
@@ -1384,19 +1505,38 @@
       el.title = title;
       setText($('statusText'), text);
     }
-    // The profile that's active on the phone (switching happens there).
+    // Every iOS profile is in the snapshot; pick one here without touching
+    // the phone's active profile.
+    function setProfile(id) {
+      cloud.profileId = id;
+      storageSet('PriceCloudProfile.' + cloudParams.record, id);
+      state = computeCloudState();
+      render();
+    }
     function renderProfile() {
-      // Profile photo rides in the encrypted icons record (key "@profile").
-      const photo = cloud.icons['@profile'];
+      const profiles = ((cloud.payload || {}).state || {}).profiles || [];
+      const shownId = (chosenProfile(cloud.payload.state) || profiles.find((p) => p.isActive) || {}).id;
+      // Profile photos ride in the encrypted icons record.
+      const photo = cloud.icons['@profile:' + shownId] || (shownId && profiles.find((p) => p.id === shownId && p.isActive) ? cloud.icons['@profile'] : null);
       const avatar = $('avatar');
-      const avatarKey = (photo ? 'photo' + iconsVersion : 'initial') + (state.profileInitial || '');
+      const avatarKey = (photo ? 'photo' + iconsVersion + shownId : 'initial') + (state.profileInitial || '');
       if (avatar._key !== avatarKey) {
         avatar._key = avatarKey;
         avatar.innerHTML = photo && /^[A-Za-z0-9+/=]+$/.test(photo)
           ? '<img src="data:image/jpeg;base64,' + photo + '" alt="">'
           : '<span>' + esc(state.profileInitial || 'P') + '</span>';
       }
-      setHTML($('profileControl'), '<span class="profile-name">' + esc(state.profileName || 'Portfolio') + '</span>');
+      const holder = $('profileControl');
+      if (profiles.length < 2) {
+        setHTML(holder, '<span class="profile-name">' + esc(state.profileName || 'Portfolio') + '</span>');
+        return;
+      }
+      setHTML(holder, '<span class="select-pill"><select id="profileSelect" aria-label="Profile">'
+        + profiles.map((p) => '<option value="' + esc(p.id) + '"' + (p.id === shownId ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('')
+        + '</select></span>');
+      const select = $('profileSelect');
+      if (select.value !== shownId) select.value = shownId;
+      select.onchange = () => setProfile(select.value);
     }
     function renderHero() {
       const s = state.summary;
@@ -1501,7 +1641,8 @@
       } catch (_) {}
       detail.series.set(cacheKey, { at: Date.now(), points });
       detail.loading.delete(cacheKey);
-      if (detail.key) renderDetail();
+      if (view === 'detail' && detail.key) renderDetail();
+      if (view === 'map') renderMap();
     }
     // Right edge follows the live price, like the hero chart's net worth.
     function withLivePrice(points, price) {
@@ -1630,58 +1771,235 @@
         : '');
     }
 
-    function detailHash() {
-      return location.pathname + location.search + '#r=' + cloudParams.record + (detail.key ? '&a=' + encodeURIComponent(detail.key) : '');
+    // ---------- Views & routing: dashboard, asset detail, watch map ----------
+    // `#r=<record>` is the dashboard, `&a=h:<id>` / `&a=w:<id>` an asset
+    // page, `&a=map` the watch map; browser Back walks between them.
+    let view = 'dashboard';
+    let dashboardScroll = 0;
+    function routeHash(asset) {
+      return location.pathname + location.search + '#r=' + cloudParams.record + (asset ? '&a=' + encodeURIComponent(asset) : '');
     }
-    function openDetail(kind, id) {
-      detail.kind = kind;
-      detail.id = id;
-      detail.key = kind + ':' + id;
-      history.pushState({ priceDetail: true }, '', detailHash());
-      showDetail();
-    }
-    function showDetail() {
-      detail.scrollY = window.scrollY;
-      $('dashboard').hidden = true;
-      $('detail').hidden = false;
-      document.body.classList.add('detail-open');
+    function showView(name) {
+      if (view === 'dashboard' && name !== 'dashboard') dashboardScroll = window.scrollY;
+      view = name;
+      $('dashboard').hidden = name !== 'dashboard';
+      $('detail').hidden = name !== 'detail';
+      $('watchmap').hidden = name !== 'map';
+      document.body.classList.toggle('detail-open', name !== 'dashboard');
+      if (name === 'dashboard') {
+        detail.key = null;
+        if (state) { portfolioChart.sig = ''; render(); }
+        window.scrollTo(0, dashboardScroll);
+        return;
+      }
       window.scrollTo(0, 0);
-      detail.chart.sig = '';
-      renderDetail();
+      if (name === 'detail') { detail.chart.sig = ''; renderDetail(); }
+      else renderMap();
     }
-    function hideDetail() {
-      detail.key = null;
-      $('detail').hidden = true;
-      $('dashboard').hidden = false;
-      document.body.classList.remove('detail-open');
-      if (state) { portfolioChart.sig = ''; render(); }
-      window.scrollTo(0, detail.scrollY || 0);
+    function navigate(asset) {
+      history.pushState({ priceView: true }, '', routeHash(asset));
+      syncRoute();
     }
-    function closeDetail() {
-      if (history.state && history.state.priceDetail) {
+    function openDetail(kind, id) { navigate(kind + ':' + id); }
+    function openMap() { navigate('map'); }
+    function hideDetail() { showView('dashboard'); }
+    function goBack() {
+      if (history.state && history.state.priceView) {
         history.back();
       } else {
-        detail.key = null;
-        history.replaceState(null, '', detailHash());
-        hideDetail();
+        history.replaceState(null, '', routeHash(null));
+        syncRoute();
       }
     }
+    const closeDetail = goBack;
     // Back/forward and reloads land on the right view.
     function syncRoute() {
       if (!cloudParams || !state) return;
       const asset = new URLSearchParams(location.hash.slice(1)).get('a');
-      if (asset && /^[hw]:/.test(asset)) {
+      if (asset === 'map') {
+        detail.key = null;
+        showView('map');
+      } else if (asset && /^[hw]:/.test(asset)) {
         detail.kind = asset[0];
         detail.id = asset.slice(2);
         detail.key = asset;
-        if ($('detail').hidden) showDetail(); else renderDetail();
-      } else if (detail.key || !$('detail').hidden) {
-        hideDetail();
+        if (view === 'detail') renderDetail(); else showView('detail');
+      } else if (view !== 'dashboard') {
+        showView('dashboard');
       }
     }
+
+    // ---------- Watch map (WatchlistHeatMapSheet) ----------
+    const mapTiles = new Map();
+    // Same weights as heatMapWeight: compressed market cap, then volume,
+    // then price, so every watched asset stays discoverable.
+    function heatWeight(w, index) {
+      const compressed = (raw) => (finite(raw) && raw > 0 ? Math.max(10, Math.pow(raw, 0.22)) : 1);
+      if (w.marketCapUSD > 0) return compressed(w.marketCapUSD);
+      if (w.quoteVolume24hUSD > 0) return compressed(w.quoteVolume24hUSD);
+      if (w.volume24h > 0 && w.priceUSD > 0) return compressed(w.volume24h * w.priceUSD);
+      if (w.priceUSD > 0) return compressed(w.priceUSD);
+      return 10 + Math.max(0, 24 - index) / 6;
+    }
+    // WatchTreemapLayout: losers / winners / neutral get their own blocks
+    // when each is big enough, then balanced binary splits.
+    function treemap(items, rect) {
+      const groupWeight = (list) => list.reduce((sum, item) => sum + item.weight, 0);
+      function split(list, r) {
+        if (!list.length) return [];
+        if (list.length === 1) return [{ item: list[0], rect: r }];
+        const total = groupWeight(list);
+        if (!(total > 0)) return [];
+        let index = 1;
+        if (list.length > 2) {
+          let running = 0, bestDelta = Infinity;
+          for (let i = 1; i < list.length; i++) {
+            running += list[i - 1].weight;
+            const delta = Math.abs(total * 0.5 - running);
+            if (delta <= bestDelta) { bestDelta = delta; index = i; } else break;
+          }
+          index = Math.max(1, Math.min(list.length - 1, index));
+        }
+        const first = list.slice(0, index), second = list.slice(index);
+        const ratio = groupWeight(first) / total;
+        let a, b;
+        if (r.w >= r.h) {
+          a = { x: r.x, y: r.y, w: r.w * ratio, h: r.h };
+          b = { x: r.x + a.w, y: r.y, w: Math.max(0, r.w - a.w), h: r.h };
+        } else {
+          a = { x: r.x, y: r.y, w: r.w, h: r.h * ratio };
+          b = { x: r.x, y: r.y + a.h, w: r.w, h: Math.max(0, r.h - a.h) };
+        }
+        return split(first, a).concat(split(second, b));
+      }
+      const clean = items.filter((i) => finite(i.weight) && i.weight > 0);
+      if (!clean.length || rect.w <= 0 || rect.h <= 0) return [];
+      const losers = clean.filter((i) => (i.pct || 0) < -0.005);
+      const winners = clean.filter((i) => (i.pct || 0) > 0.005);
+      const neutral = clean.filter((i) => !finite(i.pct) || Math.abs(i.pct) <= 0.005);
+      const groups = [losers, winners, neutral].filter((g) => g.length);
+      const total = groupWeight(clean);
+      if (!(groups.length > 1 && groups.every((g) => groupWeight(g) / total >= 0.14))) return split(clean, rect);
+      let core = Object.assign({}, rect), neutralRect = null;
+      if (neutral.length) {
+        const share = Math.min(0.16, Math.max(0.07, groupWeight(neutral) / total));
+        if (rect.w >= rect.h) {
+          neutralRect = { x: rect.x + rect.w * (1 - share), y: rect.y, w: rect.w * share, h: rect.h };
+          core.w = Math.max(0, rect.w - neutralRect.w);
+        } else {
+          neutralRect = { x: rect.x, y: rect.y + rect.h * (1 - share), w: rect.w, h: rect.h * share };
+          core.h = Math.max(0, rect.h - neutralRect.h);
+        }
+      }
+      let out = [];
+      if (losers.length && winners.length) {
+        const share = groupWeight(losers) / (groupWeight(losers) + groupWeight(winners));
+        let a, b;
+        if (core.w >= core.h) {
+          a = { x: core.x, y: core.y, w: core.w * share, h: core.h };
+          b = { x: core.x + a.w, y: core.y, w: Math.max(0, core.w - a.w), h: core.h };
+        } else {
+          a = { x: core.x, y: core.y, w: core.w, h: core.h * share };
+          b = { x: core.x, y: core.y + a.h, w: core.w, h: Math.max(0, core.h - a.h) };
+        }
+        out = split(losers, a).concat(split(winners, b));
+      } else {
+        out = split(losers.length ? losers : winners, core);
+      }
+      return neutralRect ? out.concat(split(neutral, neutralRect)) : out;
+    }
+    // Tile fill strengthens with the move (up to 8 %), like heatFill; the
+    // glyph ink is whichever of white / near-black reads on that fill.
+    function heatFill(pct) {
+      const neutral = !finite(pct) || Math.abs(pct) < 0.005;
+      const base = hexRGB(neutral ? theme.text : (pct >= 0 ? theme.up : theme.down));
+      const alpha = neutral ? 0.28 : 0.58 + Math.min(1, Math.abs(pct) / 8) * 0.34;
+      const canvas = hexRGB(theme.canvas);
+      const mixed = { r: base.r * alpha + canvas.r * (1 - alpha), g: base.g * alpha + canvas.g * (1 - alpha), b: base.b * alpha + canvas.b * (1 - alpha) };
+      const white = contrast({ r: 1, g: 1, b: 1 }, mixed);
+      const ink = white >= 3 || white >= contrast({ r: 0.043, g: 0.043, b: 0.043 }, mixed) ? '#FFFFFF' : '#0B0B0B';
+      return { fill: 'rgba(' + Math.round(base.r * 255) + ',' + Math.round(base.g * 255) + ',' + Math.round(base.b * 255) + ',' + alpha.toFixed(3) + ')', ink };
+    }
+    function renderMap() {
+      if (view !== 'map' || !state) return;
+      const all = state.watches || [];
+      const rows = filterRows(all, filterAvailable(all) ? watchFilter() : 'all');
+      const items = rows.map((w, i) => ({ w, id: w.id || w.symbol, weight: heatWeight(w, i), pct: changeOf(w) }))
+        .sort((a, b) => (b.weight - a.weight) || a.w.symbol.localeCompare(b.w.symbol));
+      setText($('mapTitle'), items.length + ' watching');
+      const knownCap = items.reduce((sum, i) => sum + (i.w.marketCapUSD > 0 ? i.w.marketCapUSD : 0), 0);
+      setHTML($('mapCap'), knownCap > 0 ? '<div class="k">KNOWN CAP</div><div class="v">' + esc(fmtCompactUSD(knownCap)) + '</div>' : '');
+      const area = $('mapArea');
+      const W = area.clientWidth, H = area.clientHeight;
+      const layouts = treemap(items, { x: 0, y: 0, w: W, h: H });
+      const seen = new Set();
+      for (const { item, rect } of layouts) {
+        const gap = rect.w > 6 && rect.h > 6 ? 1 : 0;
+        const left = rect.x <= 0.5 ? 0 : gap, top = rect.y <= 0.5 ? 0 : gap;
+        const right = rect.x + rect.w >= W - 0.5 ? 0 : gap, bottom = rect.y + rect.h >= H - 0.5 ? 0 : gap;
+        const x = rect.x + left, y = rect.y + top;
+        const w = Math.max(0, rect.w - left - right), h = Math.max(0, rect.h - top - bottom);
+        const key = item.id + '|' + theme.name + '|' + iconsVersion;
+        seen.add(key);
+        let tile = mapTiles.get(key);
+        if (!tile) {
+          tile = document.createElement('button');
+          tile.type = 'button';
+          tile.className = 'tile';
+          tile.dataset.id = item.id;
+          tile.innerHTML = badgeHTML(item.w) + '<span class="t-abbr"></span><span class="t-sym"></span><span class="t-pct"></span>';
+          tile.addEventListener('click', () => openDetail('w', tile.dataset.id));
+          area.appendChild(tile);
+          mapTiles.set(key, tile);
+        }
+        const minSide = Math.min(w, h);
+        const canMark = w >= 12 && h >= 12, canSymbol = w >= 38 && h >= 48, canPct = w >= 50 && h >= 74;
+        const badgeSize = !canSymbol ? Math.max(10, Math.min(22, minSide * 0.72))
+          : canPct ? Math.min(34, Math.max(20, Math.min(w * 0.26, h * 0.28)))
+          : Math.min(28, Math.max(16, Math.min(w * 0.30, h * 0.34)));
+        const { fill, ink } = heatFill(item.pct);
+        const pctText = finite(item.pct) ? fmtPct(item.pct) : '-';
+        Object.assign(tile.style, {
+          left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px',
+          borderRadius: Math.max(3, Math.min(12, minSide * 0.12)) + 'px',
+          background: fill, color: ink, gap: (canPct ? 4 : 3) + 'px'
+        });
+        tile.setAttribute('aria-label', (item.w.displayName || item.w.symbol) + ', ' + item.w.symbol + ', ' + (finite(item.pct) ? pctText : 'change unavailable'));
+        const badge = tile.querySelector('.badge');
+        const showBadge = canMark && (canSymbol || minSide >= 18);
+        badge.style.display = showBadge ? '' : 'none';
+        badge.style.width = badge.style.height = badgeSize + 'px';
+        // LetterBadge / cash glyph scale with the badge (size * 0.5).
+        const glyph = badge.querySelector('.badge-letter') || (badge.classList.contains('cash') ? badge : null);
+        if (glyph) glyph.style.fontSize = Math.round(badgeSize * 0.5) + 'px';
+        const abbr = tile.querySelector('.t-abbr');
+        abbr.style.display = canMark && !canSymbol && minSide < 18 && w * h >= 170 ? '' : 'none';
+        abbr.style.fontSize = Math.max(7, minSide * 0.48) + 'px';
+        setText(abbr, item.w.symbol.slice(0, 2));
+        const sym = tile.querySelector('.t-sym');
+        sym.style.display = canSymbol ? '' : 'none';
+        sym.style.fontSize = (canPct ? Math.min(16, Math.max(11, Math.min(w * 0.16, h * 0.15))) : Math.min(14, Math.max(10, Math.min(w * 0.18, h * 0.22)))) + 'px';
+        setText(sym, item.w.symbol);
+        const pctEl = tile.querySelector('.t-pct');
+        pctEl.style.display = canPct ? '' : 'none';
+        pctEl.style.fontSize = Math.min(14, Math.max(10, Math.min(w * 0.14, h * 0.13))) + 'px';
+        setText(pctEl, pctText);
+      }
+      for (const [key, tile] of mapTiles) {
+        if (!seen.has(key)) { tile.remove(); mapTiles.delete(key); }
+      }
+      $('mapEmpty').hidden = items.length > 0;
+    }
+
     function wireDetail() {
       detail.chart = makeChart($('detailChart'), 'dt');
-      $('detailBack').addEventListener('click', closeDetail);
+      $('detailBack').addEventListener('click', goBack);
+      $('mapBack').addEventListener('click', goBack);
+      let mapFrame = 0;
+      new ResizeObserver(() => {
+        cancelAnimationFrame(mapFrame);
+        mapFrame = requestAnimationFrame(renderMap);
+      }).observe($('mapArea'));
       const cycleHero = () => {
         const row = detailRow();
         if (!row) return;
@@ -1695,7 +2013,11 @@
       };
       $('detailHero').addEventListener('click', cycleHero);
       $('detailHero').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cycleHero(); } });
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && detail.key) closeDetail(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (watchMenuOpen) { watchMenuOpen = false; renderWatches(); return; }
+        if (view !== 'dashboard') goBack();
+      });
       window.addEventListener('popstate', syncRoute);
       // Rows open their asset page, by click or Enter.
       const openFromRow = (tr) => { if (tr && tr.dataset.kind && state) openDetail(tr.dataset.kind, tr.dataset.id); };
@@ -1984,6 +2306,49 @@
       const values = { marketCap: (w) => w.marketCapUSD, change: changeOf, price: (w) => w.priceUSD };
       return numericSort(list, dir, values[mode], nameOf);
     }
+    // The iOS sort menu: the button's glyph shows the active mode.
+    const ICON = (body) => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+    const SORT_ICONS = {
+      manual: ICON('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+      change: ICON('<path d="M18 6L6 18"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>'),
+      marketCap: ICON('<path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/>'),
+      price: ICON('<path d="M4 20h16"/><path d="M7 16v-5M12 16V7M17 16v-8"/>'),
+      name: '<span class="aa">Aa</span>'
+    };
+    const MAP_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+      + [3, 10, 17].map((y) => [3, 10, 17].map((x) => '<rect x="' + x + '" y="' + y + '" width="5" height="5" rx="1.2"/>').join('')).join('') + '</svg>';
+    const SORT_ITEMS = [['manual', 'Custom order'], ['change', 'Change'], ['marketCap', 'Market cap'], ['name', 'Name']];
+    let watchMenuOpen = false;
+    function sortMenuButton(sort) {
+      return '<button class="icon-btn" type="button" id="watchSortButton" data-watch-menu aria-haspopup="menu" aria-expanded="' + watchMenuOpen
+        + '" aria-label="Sort watchlist" title="Sort">' + (SORT_ICONS[sort.mode] || SORT_ICONS.manual) + '</button>';
+    }
+    // The menu lives on <body> (position: fixed) so the card's rounded
+    // clipping can't cut it off.
+    function placeSortMenu(sort) {
+      let menu = $('watchSortMenu');
+      if (!watchMenuOpen) { if (menu) menu.remove(); return; }
+      if (!menu) {
+        menu = document.createElement('div');
+        menu.id = 'watchSortMenu';
+        menu.className = 'menu';
+        menu.setAttribute('role', 'menu');
+        document.body.appendChild(menu);
+      }
+      setHTML(menu, SORT_ITEMS.map(([mode, label]) => {
+        const active = sort.mode === mode;
+        const mark = active ? (mode === 'manual' ? '\u2713' : (sort.dir === 'asc' ? '\u2191' : '\u2193')) : '';
+        return '<button class="menu-item" type="button" role="menuitemradio" aria-checked="' + active + '" data-watch-sortpick="' + mode + '"><span>'
+          + label + '</span><span class="menu-mark">' + mark + '</span></button>';
+      }).join('') + (sort.mode !== 'manual'
+        ? '<div class="menu-sep"></div><button class="menu-item" type="button" role="menuitem" data-watch-reverse><span>Reverse order</span><span class="menu-mark">\u21C5</span></button>'
+        : ''));
+      const button = $('watchSortButton');
+      if (!button) return;
+      const r = button.getBoundingClientRect();
+      menu.style.top = (r.bottom + 6) + 'px';
+      menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
+    }
     function createWatchRow(w) {
       const tr = document.createElement('tr');
       tr.dataset.kind = 'w';
@@ -2018,10 +2383,11 @@
         + [['price', 'Price'], ['marketCap', 'MCap']].map(([m, label]) =>
           '<button class="value-tab" type="button" role="tab" aria-selected="' + (mode === m) + '" data-watch-value="' + m + '">' + label + '</button>').join('')
         + '</div>';
-      setHTML($('watchTools'),
-        (sort.mode !== 'manual' ? '<button class="chip" type="button" data-watch-reset>Custom order</button>' : '')
-        + tabs
-        + (canFilter ? filterHTML(filter, 'data-watch-filter') : ''));
+      setHTML($('watchTools'), tabs
+        + (canFilter ? filterHTML(filter, 'data-watch-filter') : '')
+        + sortMenuButton(sort)
+        + '<button class="icon-btn" type="button" data-watch-map aria-label="Open watch map" title="Watch map"' + (all.length ? '' : ' disabled') + '>' + MAP_ICON + '</button>');
+      placeSortMenu(sort);
       const visible = sortedWatches(filterRows(all, filter));
       setText($('watchCount'), visible.length === all.length ? String(all.length) : visible.length + ' of ' + all.length);
       const table = $('watchTable');
@@ -2052,10 +2418,22 @@
     }
 
     function wireTables() {
+      const closeMenu = (e) => {
+        if (!watchMenuOpen || (e && e.target && e.target.closest && e.target.closest('#watchSortMenu'))) return;
+        watchMenuOpen = false;
+        renderWatches();
+      };
+      window.addEventListener('scroll', closeMenu, true);
+      window.addEventListener('resize', closeMenu);
       const observer = new ResizeObserver(alignColumns);
       observer.observe($('holdingsScroll'));
       observer.observe($('watchScroll'));
       document.addEventListener('click', (e) => {
+        // Any click outside the sort menu closes it.
+        if (watchMenuOpen && !e.target.closest('#watchSortMenu, #watchSortButton')) {
+          watchMenuOpen = false;
+          renderWatches();
+        }
         const target = e.target.closest('button');
         if (!target || !state) return;
         if (target.dataset.holdingSort) {
@@ -2077,9 +2455,30 @@
           }
           storageSet(WATCH_SORT_KEY, next);
           renderWatches();
-        } else if (target.hasAttribute('data-watch-reset')) {
-          storageSet(WATCH_SORT_KEY, 'manual|asc');
+        } else if (target.hasAttribute('data-watch-menu')) {
+          watchMenuOpen = !watchMenuOpen;
           renderWatches();
+        } else if (target.dataset.watchSortpick) {
+          // toggleSort: picking the active mode reverses it; others start
+          // in their default direction.
+          const mode = target.dataset.watchSortpick;
+          const cur = watchSort();
+          if (cur.mode === mode) {
+            if (mode !== 'manual') storageSet(WATCH_SORT_KEY, mode + '|' + (cur.dir === 'asc' ? 'desc' : 'asc'));
+          } else {
+            storageSet(WATCH_SORT_KEY, mode + '|' + WATCH_MODES[mode]);
+          }
+          watchMenuOpen = false;
+          renderWatches();
+        } else if (target.hasAttribute('data-watch-reverse')) {
+          const cur = watchSort();
+          if (cur.mode !== 'manual') storageSet(WATCH_SORT_KEY, cur.mode + '|' + (cur.dir === 'asc' ? 'desc' : 'asc'));
+          watchMenuOpen = false;
+          renderWatches();
+        } else if (target.hasAttribute('data-watch-map')) {
+          watchMenuOpen = false;
+          renderWatches();
+          openMap();
         } else if (target.dataset.watchValue) {
           storageSet(WATCH_VALUE_KEY, target.dataset.watchValue);
           // A value-column sort follows the switch, like the iOS list.
@@ -2157,7 +2556,8 @@
     const cloud = {
       payload: null, updated: null, icons: {}, iconsUpdated: null, prices: {},
       range: storageGet('PriceCloudRange.v1', ''), binanceBase: null, invalidBinance: new Set(),
-      lastSnapshotCheck: 0, lastIconsCheck: 0, lastCG: 0, key: null, built: {}
+      lastSnapshotCheck: 0, lastIconsCheck: 0, lastCG: 0, key: null, built: {}, rowSpark: {},
+      profileId: cloudParams ? storageGet('PriceCloudProfile.' + cloudParams.record, '') : ''
     };
     const SNAPSHOT_EVERY = 60000, ICONS_EVERY = 600000, CG_EVERY = 60000, BINANCE_EVERY = 5000;
 
@@ -2392,12 +2792,13 @@
         return { t, v: sum - debtUSD };
       }), 180);
     }
-    async function ensureHistory(range) {
+    async function ensureHistory(range, profileKey) {
       const spec = RANGE_SPEC[range];
-      if (!spec || building.has(range) || !state) return;
-      const have = cloud.built[range];
+      const key = profileKey + '|' + range;
+      if (!spec || building.has(key) || !state) return;
+      const have = cloud.built[key];
       if (have && Date.now() - have.at < 300000) return;
-      building.add(range);
+      building.add(key);
       const byId = {};
       try {
         await Promise.all((state.holdings || []).map(async (h) => {
@@ -2412,11 +2813,14 @@
             }
           } catch (_) {}
         }));
-        cloud.built[range] = { at: Date.now(), points: aggregateHistory(byId, state.holdings || [], state.summary.debtUSD || 0) };
+        cloud.built[key] = { at: Date.now(), points: aggregateHistory(byId, state.holdings || [], state.summary.debtUSD || 0) };
+        // Other profiles have no phone-side sparklines; the 1D candles fill
+        // their rows' trend column.
+        if (range === '1D') for (const h of state.holdings || []) if (byId[h.id]) cloud.rowSpark[h.priceKey] = byId[h.id];
       } finally {
-        building.delete(range);
+        building.delete(key);
       }
-      if (state && state.rangeLabel === range) {
+      if (state && (state.rangeLabel === range || range === '1D')) {
         state = computeCloudState();
         render();
       }
@@ -2438,9 +2842,33 @@
       copy[copy.length - 1] = { t: copy[copy.length - 1].t, v: price };
       return copy;
     }
+    // Another profile than the phone's active one: rebuild the state shape
+    // from its raw holdings; everything else is priced live below.
+    function profileBase(base, profile) {
+      return Object.assign({}, base, {
+        profileName: profile.name,
+        profileInitial: profile.initial,
+        holdings: (profile.holdings || []).map((h) => Object.assign({
+          valueUSD: h.priceUSD > 0 ? h.amount * h.priceUSD : 0,
+          // Cash has no move of its own, like change1D returning nil.
+          changePct1D: h.isCash ? null : h.changePct24h,
+          sparkline: cloud.rowSpark[h.priceKey] || []
+        }, h, h.isCash ? { changePct24h: null } : {})),
+        debt: profile.debt || { hasValue: false },
+        portfolioSparkline: []
+      });
+    }
+    function chosenProfile(base) {
+      const profiles = base.profiles || [];
+      const active = profiles.find((p) => p.isActive);
+      if (!cloud.profileId || (active && cloud.profileId === active.id)) return null;
+      return profiles.find((p) => p.id === cloud.profileId && Array.isArray(p.holdings)) || null;
+    }
     function computeCloudState() {
       const snap = cloud.payload;
-      const base = snap.state;
+      const chosen = chosenProfile(snap.state);
+      const base = chosen ? profileBase(snap.state, chosen) : snap.state;
+      const profileKey = chosen ? chosen.id : 'active';
       const live = cloud.prices;
       const display = Object.assign({}, base.display);
       // "Auto" follows the computer this page is open on, not the phone.
@@ -2524,15 +2952,17 @@
       // Portfolio chart: the phone's series for this timeframe with the
       // right edge moved to the live net worth.
       const range = (base.rangeOptions || ['1H', '4H', '1D', '1W', '1M', 'ALL']).includes(cloud.range) ? cloud.range : base.rangeLabel;
-      let points = ((snap.series || {})[range] || (range === base.rangeLabel ? base.portfolioSparkline : []) || []).slice();
+      const phoneSeries = chosen ? {} : (snap.series || {});
+      let points = (phoneSeries[range] || (!chosen && range === base.rangeLabel ? base.portfolioSparkline : []) || []).slice();
       let historyLoading = false;
       if (points.length < 2 && RANGE_SPEC[range]) {
-        const built = cloud.built[range];
+        const built = cloud.built[profileKey + '|' + range];
         if (built && built.points.length >= 2) points = built.points.slice();
         else historyLoading = true;
         // Fetch (or refresh) after this render; ensureHistory re-renders.
-        setTimeout(() => ensureHistory(range), 0);
+        setTimeout(() => ensureHistory(range, profileKey), 0);
       }
+      if (chosen && !cloud.built[profileKey + '|1D']) setTimeout(() => ensureHistory('1D', profileKey), 0);
       if (points.length >= 2) {
         const nowT = Date.now() / 1000;
         const last = points[points.length - 1];

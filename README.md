@@ -1,6 +1,6 @@
 # Price — always-on dashboard
 
-Static web page for the [Price](https://apps.apple.com) iOS app's always-on
+Static web page for the Price iOS app's always-on
 desktop dashboard. It is deployed from the app repo with
 `Tools/deploy-dashboard.sh`; don't edit files here by hand.
 

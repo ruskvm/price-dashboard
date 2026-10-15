@@ -810,7 +810,7 @@
     const CK_BASE = 'https://api.apple-cloudkit.com/database/1/iCloud.com.pie.CryptoFolio/production/public';
     const CK_TOKEN = 'ca55220cc6f0310c62b41f22d0bd32b45253c39d3dd07da9638413d8867719dc';
     // Stamped by Tools/deploy-dashboard.sh, which also writes version.txt.
-    const BUILD = 'ba0495535c82';
+    const BUILD = 'b89c0545f8a9';
 
     let state = null;
     let inFlight = false;
@@ -1386,7 +1386,16 @@
     }
     // The profile that's active on the phone (switching happens there).
     function renderProfile() {
-      setHTML($('avatar'), '<span>' + esc(state.profileInitial || 'P') + '</span>');
+      // Profile photo rides in the encrypted icons record (key "@profile").
+      const photo = cloud.icons['@profile'];
+      const avatar = $('avatar');
+      const avatarKey = (photo ? 'photo' + iconsVersion : 'initial') + (state.profileInitial || '');
+      if (avatar._key !== avatarKey) {
+        avatar._key = avatarKey;
+        avatar.innerHTML = photo && /^[A-Za-z0-9+/=]+$/.test(photo)
+          ? '<img src="data:image/jpeg;base64,' + photo + '" alt="">'
+          : '<span>' + esc(state.profileInitial || 'P') + '</span>';
+      }
       setHTML($('profileControl'), '<span class="profile-name">' + esc(state.profileName || 'Portfolio') + '</span>');
     }
     function renderHero() {

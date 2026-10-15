@@ -1366,6 +1366,10 @@
         mode = 'expired';
         text = linkMessage || 'Link expired';
         title = 'Copy the current link from Price → Settings → Desktop dashboard';
+      } else if (cloud.waiting) {
+        mode = 'connecting';
+        text = 'Waiting for your iPhone\u2026';
+        title = 'Open Price on your iPhone with Desktop dashboard turned on';
       } else if (failures >= 3) {
         mode = 'offline';
         text = 'Offline';
@@ -2185,17 +2189,25 @@
       const [record] = await ckLookup([cloudParams.record]);
       if (!record || record.serverErrorCode) {
         if (record && record.serverErrorCode === 'NOT_FOUND') {
-          linkExpired = true;
-          linkMessage = 'Link turned off';
-          // Turned off or replaced on the phone: forget everything kept here.
-          try {
-            localStorage.removeItem(cloudParams.storeKey);
-            localStorage.removeItem('PriceCloudSnapshot.' + cloudParams.record);
-            localStorage.removeItem('PriceCloudIcons.' + cloudParams.record);
-          } catch (_) {}
+          if (cloud.payload) {
+            // Was showing data, now gone: turned off or replaced on the
+            // phone. Forget what this browser kept for it.
+            linkExpired = true;
+            linkMessage = 'Link turned off';
+            try {
+              localStorage.removeItem(cloudParams.storeKey);
+              localStorage.removeItem('PriceCloudSnapshot.' + cloudParams.record);
+              localStorage.removeItem('PriceCloudIcons.' + cloudParams.record);
+            } catch (_) {}
+          } else {
+            // Never seen yet: the phone's first upload just hasn't landed
+            // (link opened right after turning it on or tapping New).
+            cloud.waiting = true;
+          }
         }
         throw new Error('snapshot');
       }
+      cloud.waiting = false;
       const updated = fieldValue(record, 'updatedAt');
       if (cloud.payload && updated === cloud.updated) return false;
       const sealed = fieldValue(record, 'payload');
@@ -2624,7 +2636,12 @@
         if (state) render(); else renderStatus();
       } finally {
         inFlight = false;
-        schedule(failures ? Math.min(30000, BINANCE_EVERY * Math.pow(2, Math.min(failures, 3))) : BINANCE_EVERY);
+        if (cloud.waiting) {
+          cloud.lastSnapshotCheck = 0;
+          schedule(10000);
+        } else {
+          schedule(failures ? Math.min(30000, BINANCE_EVERY * Math.pow(2, Math.min(failures, 3))) : BINANCE_EVERY);
+        }
       }
     }
     async function cloudBoot() {

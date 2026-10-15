@@ -10,8 +10,6 @@
        nothing else can receive the decrypted portfolio. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.apple-cloudkit.com https://api.binance.com https://api.binance.us https://api.coingecko.com; base-uri 'none'; form-action 'none'">
   <title>Price</title>
-  <!-- Relative asset paths: the phone serves them next to /dashboard/<token>,
-       the hosted always-on copy from its own folder. -->
   <link rel="icon" type="image/png" href="apple-touch-icon.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preload" href="assets/manrope-bold.ttf" as="font" type="font/ttf" crossorigin>
@@ -140,38 +138,6 @@
     }
     .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .profile-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
-    .select-pill { position: relative; min-width: 0; }
-    .select-pill select {
-      appearance: none;
-      -webkit-appearance: none;
-      border: 0;
-      border-radius: 999px;
-      background: var(--fill);
-      color: var(--text);
-      font-size: 14px;
-      padding: 8px 32px 8px 14px;
-      max-width: 240px;
-      cursor: pointer;
-      text-overflow: ellipsis;
-    }
-    .select-pill select:hover { background: var(--separator); }
-    /* Browsers treat a clicked <select> as keyboard focus and ring it; a
-       tone shift reads as focus without the white outline. */
-    .select-pill select:focus,
-    .select-pill select:focus-visible { outline: none; box-shadow: none; background: var(--separator); }
-    .select-pill select:disabled { cursor: default; opacity: 0.6; }
-    .select-pill::after {
-      content: "";
-      position: absolute;
-      right: 14px;
-      top: 50%;
-      width: 6px;
-      height: 6px;
-      border-right: 2px solid var(--muted);
-      border-bottom: 2px solid var(--muted);
-      transform: translateY(-70%) rotate(45deg);
-      pointer-events: none;
-    }
 
     /* Layout */
     .dashboard {
@@ -243,7 +209,6 @@
       cursor: crosshair;
       transition: opacity 0.2s ease;
     }
-    .chart.pending { opacity: 0.45; }
     .chart-body { position: absolute; inset: 0; }
     .chart-body svg, .chart-overlay { display: block; overflow: visible; }
     .chart-overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
@@ -426,6 +391,31 @@
       cursor: pointer;
     }
     .chip:hover { background: var(--separator); }
+    /* The watchlist's Price / MCap switch: underlined text tabs, as on iOS. */
+    .value-tabs { display: inline-flex; gap: 16px; margin-right: 6px; }
+    .value-tab {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--secondary);
+      font-size: 12px;
+      padding: 7px 0;
+      cursor: pointer;
+      position: relative;
+    }
+    .value-tab:hover { color: var(--text); }
+    .value-tab[aria-selected="true"] { color: var(--text); }
+    .value-tab[aria-selected="true"]::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 2px;
+      background: var(--text);
+    }
+    tbody tr { cursor: pointer; }
+    tbody tr:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; border-radius: 0; }
     .table-scroll {
       position: relative;
       overflow-x: auto;
@@ -538,6 +528,92 @@
     .badge.cash.usd { background: var(--usd); }
     .badge.cash.eur { background: var(--eur); }
 
+    /* Asset detail: CoinDetailView's stack on the left, its market
+       overview card on the right. */
+    .dashboard[hidden], .detail[hidden] { display: none; }
+    .detail {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+      width: 100%;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding-top: 4px;
+    }
+    .detail-main { min-width: 0; }
+    .detail-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .back-btn {
+      appearance: none;
+      border: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--fill);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      flex: 0 0 auto;
+      margin-right: 4px;
+    }
+    .back-btn:hover { background: var(--separator); }
+    .detail-head .badge { width: 44px; height: 44px; }
+    .detail-title { min-width: 0; flex: 1 1 auto; }
+    .detail-name { font-size: 20px; letter-spacing: -0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .detail-sym { font-size: 12px; color: var(--secondary); margin-top: 4px; }
+    .detail-pill { display: flex; align-items: baseline; gap: 6px; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .detail-pill .chg-usd, .detail-pill .chg-tf { color: var(--muted); }
+    .detail-pill .chg-tf { font-size: 10px; }
+    .cash-tag {
+      font-size: 11px;
+      letter-spacing: 1.8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: color-mix(in srgb, var(--text) 70%, transparent);
+      background: color-mix(in srgb, var(--text) 10%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 20%, transparent);
+    }
+    .detail-hero { margin-top: 18px; outline: none; }
+    .detail-hero.toggles { cursor: pointer; }
+    .detail-hero-label { font-size: 12px; color: color-mix(in srgb, var(--text) 45%, transparent); min-height: 15px; }
+    .detail-hero-value {
+      font-size: clamp(38px, 4.4vw, 52px);
+      letter-spacing: -1.5px;
+      line-height: 1.12;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 4px;
+    }
+    .detail-rows { display: grid; gap: 8px; margin-top: 16px; padding-top: 10px; border-top: 0.5px solid var(--separator); }
+    .detail-rows:empty, .debt-break:empty { display: none; }
+    .detail-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .detail-row .label { font-size: 13px; color: var(--muted); }
+    .detail-row .val { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .detail-row .foot { font-size: 12px; color: color-mix(in srgb, var(--text) 45%, transparent); margin-right: 8px; font-variant-numeric: tabular-nums; }
+    .debt-break { display: grid; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 0.5px solid var(--separator); }
+    .debt-bar-lg { display: flex; gap: 2px; height: 10px; }
+    .debt-bar-lg span { border-radius: 4px; opacity: 0.85; }
+    .debt-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .debt-cell .k { font-size: 9px; letter-spacing: 1.4px; text-transform: uppercase; color: color-mix(in srgb, var(--text) 45%, transparent); }
+    .debt-cell .v { font-size: 15px; margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .debt-cell .p { font-size: 10px; color: color-mix(in srgb, var(--text) 45%, transparent); margin-top: 2px; }
+    .detail-chart-head { display: flex; justify-content: space-between; margin-top: 26px; }
+    .detail-chart-head .micro { font-size: 11px; letter-spacing: 2px; }
+    .detail-chart { height: 230px; margin: 10px -4px 14px; }
+    @media (min-width: 1180px) and (min-height: 820px) {
+      /* The fixed-viewport dashboard layout doesn't apply to the detail. */
+      body.detail-open, html:has(body.detail-open) { overflow: auto; height: auto; }
+      body.detail-open .app { height: auto; }
+    }
+    .detail-stats { padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+    .detail-stats[hidden] { display: none; }
+    @media (min-width: 1000px) {
+      .detail { grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); align-items: start; }
+      .detail-stats { margin-top: 56px; }
+    }
+
     /* Container-driven column dropping; at phone widths the rows become the
        app's list rows (name / "amount SYM · price", sparkline, value / %). */
     /* Thresholds keep the asset column at ~210px or more. */
@@ -598,7 +674,6 @@
       .net { font-size: clamp(38px, 12vw, 58px); }
       .chart { height: 180px; }
       .stat-value { font-size: 18px; }
-      .select-pill select { max-width: 150px; }
     }
     @media (prefers-reduced-motion: reduce) {
       .chart-svg.reveal { animation: none; }
@@ -625,18 +700,12 @@
       </div>
     </header>
 
-    <main class="dashboard">
+    <main class="dashboard" id="dashboard">
       <section class="hero" aria-label="Portfolio">
         <div class="hero-label">Total balance</div>
         <div class="net" id="netWorth">&#8212;</div>
         <div class="change" id="change"></div>
-        <div class="chart no-series" id="chart" role="img" aria-label="Portfolio chart">
-          <div class="chart-body" id="chartBody"></div>
-          <svg class="chart-overlay" id="chartOverlay" aria-hidden="true"><line class="cross-v" id="crossV"/><line class="cross-h" id="crossH"/></svg>
-          <span class="chart-live" id="chartLive" aria-hidden="true"></span>
-          <span class="chart-dot" id="chartDot" aria-hidden="true"></span>
-          <div class="chart-tip" id="chartTip" aria-hidden="true"></div>
-        </div>
+        <div class="chart no-series" id="chart" role="img" aria-label="Portfolio chart"></div>
         <div class="range-row">
           <div class="segmented" id="rangeControl" role="radiogroup" aria-label="Chart timeframe"></div>
         </div>
@@ -676,23 +745,45 @@
         </div>
       </section>
     </main>
+
+    <section class="detail" id="detail" hidden aria-label="Asset">
+      <div class="detail-main">
+        <div class="detail-head">
+          <button class="back-btn" id="detailBack" type="button" aria-label="Back to dashboard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <span id="detailBadge"></span>
+          <div class="detail-title"><div class="detail-name" id="detailName"></div><div class="detail-sym" id="detailSym"></div></div>
+          <div id="detailPill"></div>
+        </div>
+        <div class="detail-hero" id="detailHero">
+          <div class="detail-hero-label" id="detailHeroLabel"></div>
+          <div class="detail-hero-value" id="detailHeroValue">&#8212;</div>
+        </div>
+        <div class="detail-rows" id="detailRows"></div>
+        <div class="debt-break" id="detailDebt"></div>
+        <div id="detailChartBlock">
+          <div class="detail-chart-head"><span class="micro" id="detailChartLabel">Price</span><span class="micro" id="detailChartRange"></span></div>
+          <div class="chart no-series detail-chart" id="detailChart" role="img" aria-label="Price chart"></div>
+          <div class="range-row"><div class="segmented" id="detailRange" role="radiogroup" aria-label="Chart timeframe"></div></div>
+        </div>
+      </div>
+      <aside class="card detail-stats" id="detailStats" aria-label="Market overview"></aside>
+    </section>
   </div>
 
-  <script type="application/json" id="initialState">null</script>
   <script>
   'use strict';
   (() => {
     const $ = (id) => document.getElementById(id);
     const finite = (n) => typeof n === 'number' && Number.isFinite(n);
     const DASH = '—';
-    const POLL_MS = 3000;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const prefersLight = window.matchMedia('(prefers-color-scheme: light)');
 
-    // Two ways in. Served by the phone (/dashboard/<token>): talk to the
-    // phone's /api. Opened from the always-on link (#r=<record>&k=<key>):
-    // read the encrypted iCloud snapshot and reprice it live ourselves, so
-    // the page keeps working while the phone sleeps.
+    // Opened from the dashboard link (#r=<record>&k=<key>): read the
+    // encrypted iCloud snapshot and reprice it live, so the page keeps
+    // working while the phone sleeps.
     // The key arrives once in the link's fragment, moves into this browser's
     // storage, and is stripped from the address bar so screenshots, screen
     // shares and copied URLs never carry it. `#r=<record>` stays, so reloads
@@ -707,7 +798,8 @@
         if (key) {
           localStorage.setItem(storeKey, key);
           if (localStorage.getItem(storeKey) === key) {
-            history.replaceState(null, '', location.pathname + location.search + '#r=' + record);
+            const asset = params.get('a');
+            history.replaceState(null, '', location.pathname + location.search + '#r=' + record + (asset ? '&a=' + encodeURIComponent(asset) : ''));
           }
         } else {
           key = localStorage.getItem(storeKey);
@@ -715,20 +807,15 @@
       } catch (_) {}
       return { record, key: key || null, storeKey };
     })();
-    const CLOUD = !!cloudParams;
-    const token = CLOUD ? '' : (location.pathname.split('/').filter(Boolean).pop() || '');
     const CK_BASE = 'https://api.apple-cloudkit.com/database/1/iCloud.com.pie.CryptoFolio/production/public';
     const CK_TOKEN = 'ca55220cc6f0310c62b41f22d0bd32b45253c39d3dd07da9638413d8867719dc';
 
     let state = null;
-    let epoch = 0;              // bumps on every user mutation; stale polls are dropped
     let inFlight = false;
     let pollTimer = 0;
     let failures = 0;
     let linkExpired = false;
     let linkMessage = '';
-    let pendingRange = null;
-    let profileChanging = false;
 
     // ---------- Theme & trend colours (mirrors AppTheme.trend) ----------
     const THEMES = {
@@ -1066,16 +1153,43 @@
         + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-opacity="' + opacity + '" stroke-width="' + lineWidth + '" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     }
 
-    // ---------- Portfolio chart ----------
-    const chart = { sig: '', mode: '', geom: null, hoverX: null, lastValue: null, armed: false, lastPulse: 0 };
+    // ---------- Charts (portfolio hero + asset detail share this) ----------
+    const CHART_INNER = '<div class="chart-body"></div>'
+      + '<svg class="chart-overlay" aria-hidden="true"><line class="cross-v"/><line class="cross-h"/></svg>'
+      + '<span class="chart-live" aria-hidden="true"></span>'
+      + '<span class="chart-dot" aria-hidden="true"></span>'
+      + '<div class="chart-tip" aria-hidden="true"></div>';
 
-    function seriesColor(points) {
-      const s = state.summary;
-      const sign = finite(s.rangeChangePct) ? s.rangeChangePct
-        : (points.length >= 2 ? points[points.length - 1].v - points[0].v : 0);
-      return sign >= 0 ? theme.up : theme.down;
+    function makeChart(root, id) {
+      root.innerHTML = CHART_INNER;
+      const c = {
+        root, id,
+        body: root.querySelector('.chart-body'),
+        crossV: root.querySelector('.cross-v'),
+        crossH: root.querySelector('.cross-h'),
+        dot: root.querySelector('.chart-dot'),
+        live: root.querySelector('.chart-live'),
+        tip: root.querySelector('.chart-tip'),
+        points: [], color: '', loading: true, empty: '', tipLines: (p) => [fmtUSD(p.v)],
+        sig: '', mode: '', geom: null, hoverX: null, lastValue: null, armed: false, lastPulse: 0
+      };
+      root.addEventListener('pointermove', (e) => chartHover(c, e.clientX));
+      root.addEventListener('pointerdown', (e) => chartHover(c, e.clientX));
+      root.addEventListener('pointerleave', () => chartLeave(c));
+      root.addEventListener('pointercancel', () => chartLeave(c));
+      root.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') chartLeave(c); });
+      let frame = 0;
+      new ResizeObserver(() => {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => drawChart(c, false));
+      }).observe(root);
+      return c;
     }
-    function seriesSVG(points, w, h, color, reveal) {
+    function setChart(c, opts) {
+      Object.assign(c, opts);
+      drawChart(c, !!opts.force);
+    }
+    function seriesSVG(c, points, w, h, color, reveal) {
       const vals = points.map((p) => p.v);
       const pts = project(vals, w, h, 2.2);
       const line = smoothPath(pts);
@@ -1084,29 +1198,30 @@
       const fadeW = Math.min(w * 0.07, 22);
       const trailW = Math.min(w * 0.08, 26);
       const openY = pts[0].y.toFixed(2);
-      chart.geom = { pts, points, w, h, color };
+      const id = c.id;
+      c.geom = { pts, points, w, h, color };
       return '<svg class="chart-svg' + (reveal ? ' reveal' : '') + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><defs>'
-        + '<linearGradient id="pfFill" gradientUnits="userSpaceOnUse" x1="0" y1="' + topY.toFixed(2) + '" x2="0" y2="' + h + '">'
+        + '<linearGradient id="' + id + 'Fill" gradientUnits="userSpaceOnUse" x1="0" y1="' + topY.toFixed(2) + '" x2="0" y2="' + h + '">'
         + '<stop offset="0" stop-color="' + color + '" stop-opacity=".30"/><stop offset=".34" stop-color="' + color + '" stop-opacity=".13"/>'
         + '<stop offset=".72" stop-color="' + color + '" stop-opacity=".02"/><stop offset="1" stop-color="' + color + '" stop-opacity="0"/></linearGradient>'
-        + '<linearGradient id="pfStroke" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + w + '" y2="0">'
+        + '<linearGradient id="' + id + 'Stroke" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + w + '" y2="0">'
         + '<stop offset="0" stop-color="' + color + '" stop-opacity=".62"/><stop offset=".45" stop-color="' + color + '" stop-opacity=".82"/>'
         + '<stop offset="1" stop-color="' + color + '" stop-opacity="1"/></linearGradient>'
-        + '<linearGradient id="pfLead" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + fadeW.toFixed(2) + '" y2="0">'
+        + '<linearGradient id="' + id + 'Lead" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + fadeW.toFixed(2) + '" y2="0">'
         + '<stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".4" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff"/></linearGradient>'
-        + '<linearGradient id="pfTrail" gradientUnits="userSpaceOnUse" x1="' + (w - trailW).toFixed(2) + '" y1="0" x2="' + w + '" y2="0">'
+        + '<linearGradient id="' + id + 'Trail" gradientUnits="userSpaceOnUse" x1="' + (w - trailW).toFixed(2) + '" y1="0" x2="' + w + '" y2="0">'
         + '<stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity=".35"/></linearGradient>'
-        + '<mask id="pfLeadMask" maskUnits="userSpaceOnUse" x="-20" y="-20" width="' + (w + 40) + '" height="' + (h + 40) + '"><rect x="-20" y="-20" width="' + (w + 40) + '" height="' + (h + 40) + '" fill="url(#pfLead)"/></mask>'
-        + '<mask id="pfTrailMask" maskUnits="userSpaceOnUse" x="0" y="0" width="' + w + '" height="' + h + '"><rect width="' + w + '" height="' + h + '" fill="url(#pfTrail)"/></mask>'
-        + '</defs><g mask="url(#pfLeadMask)">'
-        + '<path d="' + area + '" fill="url(#pfFill)" mask="url(#pfTrailMask)"/>'
+        + '<mask id="' + id + 'LeadMask" maskUnits="userSpaceOnUse" x="-20" y="-20" width="' + (w + 40) + '" height="' + (h + 40) + '"><rect x="-20" y="-20" width="' + (w + 40) + '" height="' + (h + 40) + '" fill="url(#' + id + 'Lead)"/></mask>'
+        + '<mask id="' + id + 'TrailMask" maskUnits="userSpaceOnUse" x="0" y="0" width="' + w + '" height="' + h + '"><rect width="' + w + '" height="' + h + '" fill="url(#' + id + 'Trail)"/></mask>'
+        + '</defs><g mask="url(#' + id + 'LeadMask)">'
+        + '<path d="' + area + '" fill="url(#' + id + 'Fill)" mask="url(#' + id + 'TrailMask)"/>'
         + '<line class="baseline" x1="0" x2="' + w + '" y1="' + openY + '" y2="' + openY + '"/>'
-        + '<path d="' + line + '" fill="none" stroke="url(#pfStroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '<path d="' + line + '" fill="none" stroke="url(#' + id + 'Stroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
         + '</g></svg>';
     }
     // ChartSkeleton: a neutral ghost series with a travelling highlight, so
     // loading never pre-announces up or down.
-    function ghostSVG(w, h) {
+    function ghostSVG(id, w, h) {
       const inset = Math.max(2, Math.min(h * 0.18, 2.4 * 4 + 8));
       const drawH = h - inset * 2;
       const mid = inset + drawH * 0.45;
@@ -1126,126 +1241,121 @@
         + '<animate attributeName="x2" from="0" to="' + (w + 2 * band) + '" dur="2.6s" repeatCount="indefinite"/>';
       const fadeW = Math.min(w * 0.07, 22);
       return '<svg class="chart-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><defs>'
-        + '<linearGradient id="ghFill" gradientUnits="userSpaceOnUse" x1="0" y1="' + topY.toFixed(2) + '" x2="0" y2="' + h + '">'
+        + '<linearGradient id="' + id + 'GhFill" gradientUnits="userSpaceOnUse" x1="0" y1="' + topY.toFixed(2) + '" x2="0" y2="' + h + '">'
         + '<stop offset="0" stop-color="' + ink + '" stop-opacity=".09"/><stop offset=".34" stop-color="' + ink + '" stop-opacity=".04"/>'
         + '<stop offset=".72" stop-color="' + ink + '" stop-opacity=".01"/><stop offset="1" stop-color="' + ink + '" stop-opacity="0"/></linearGradient>'
-        + '<linearGradient id="ghSweep" gradientUnits="userSpaceOnUse" x1="' + x1 + '" y1="0" x2="' + x2 + '" y2="0">'
+        + '<linearGradient id="' + id + 'GhSweep" gradientUnits="userSpaceOnUse" x1="' + x1 + '" y1="0" x2="' + x2 + '" y2="0">'
         + '<stop offset="0" stop-color="' + ink + '" stop-opacity="0"/><stop offset=".5" stop-color="' + ink + '" stop-opacity="' + (still ? '.14' : '.30') + '"/>'
         + '<stop offset="1" stop-color="' + ink + '" stop-opacity="0"/>' + sweep + '</linearGradient>'
-        + '<linearGradient id="ghLead" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + fadeW.toFixed(2) + '" y2="0">'
+        + '<linearGradient id="' + id + 'GhLead" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + fadeW.toFixed(2) + '" y2="0">'
         + '<stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".4" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff"/></linearGradient>'
-        + '<mask id="ghMask" maskUnits="userSpaceOnUse" x="-10" y="-10" width="' + (w + 20) + '" height="' + (h + 20) + '"><rect x="-10" y="-10" width="' + (w + 20) + '" height="' + (h + 20) + '" fill="url(#ghLead)"/></mask>'
-        + '</defs><g mask="url(#ghMask)">'
-        + '<path d="' + line + 'L' + w + ' ' + h + 'L0 ' + h + 'Z" fill="url(#ghFill)"/>'
+        + '<mask id="' + id + 'GhMask" maskUnits="userSpaceOnUse" x="-10" y="-10" width="' + (w + 20) + '" height="' + (h + 20) + '"><rect x="-10" y="-10" width="' + (w + 20) + '" height="' + (h + 20) + '" fill="url(#' + id + 'GhLead)"/></mask>'
+        + '</defs><g mask="url(#' + id + 'GhMask)">'
+        + '<path d="' + line + 'L' + w + ' ' + h + 'L0 ' + h + 'Z" fill="url(#' + id + 'GhFill)"/>'
         + '<path d="' + line + '" fill="none" stroke="' + ink + '" stroke-opacity=".13" stroke-width="1.6" stroke-linecap="round"/>'
-        + '<path d="' + line + '" fill="none" stroke="url(#ghSweep)" stroke-width="1.9" stroke-linecap="round"/>'
+        + '<path d="' + line + '" fill="none" stroke="url(#' + id + 'GhSweep)" stroke-width="1.9" stroke-linecap="round"/>'
         + '</g></svg>';
     }
-    function emptyChartHTML() {
-      const message = CLOUD ? 'Open this timeframe once in Price on your iPhone' : 'No chart data for this range';
+    function emptyChartHTML(message) {
       return '<div class="chart-empty"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-        + '<path d="M3 3v18h18"/><path d="M6.5 15.5l4-4.5 3.5 3 5-6"/></svg><span>' + message + '</span></div>';
+        + '<path d="M3 3v18h18"/><path d="M6.5 15.5l4-4.5 3.5 3 5-6"/></svg><span>' + esc(message) + '</span></div>';
     }
-
-    function renderChart(force) {
-      const el = $('chart');
-      const body = $('chartBody');
-      const points = (state.portfolioSparkline || []).filter((p) => finite(p.v) && finite(p.t));
+    function drawChart(c, force) {
+      const el = c.root;
+      if (!el.isConnected || el.offsetParent === null) return;
+      const points = (c.points || []).filter((p) => finite(p.v) && finite(p.t));
       const w = Math.max(1, Math.round(el.clientWidth));
       const h = Math.max(1, Math.round(el.clientHeight));
-      const mode = points.length >= 2 ? 'series' : (state.summary.isLoadingChart ? 'loading' : 'empty');
-      const color = mode === 'series' ? seriesColor(points) : '';
+      const mode = points.length >= 2 ? 'series' : (c.loading ? 'loading' : 'empty');
+      const color = mode === 'series' ? (c.color || theme.up) : '';
       let sum = 0;
       for (const p of points) sum += p.v;
-      const sig = [mode, w, h, theme.name, color, points.length,
+      const sig = [mode, w, h, theme.name, color, c.empty, points.length,
         points.length ? points[0].t : 0, points.length ? points[points.length - 1].t : 0, sum].join('|');
-      if (!force && sig === chart.sig) return;
-      const reveal = mode === 'series' && chart.mode !== 'series' && chart.mode !== '' && !reducedMotion.matches;
-      chart.sig = sig;
+      if (!force && sig === c.sig) return;
+      const reveal = mode === 'series' && c.mode !== 'series' && c.mode !== '' && !reducedMotion.matches;
+      c.sig = sig;
       if (mode === 'series') {
-        body.innerHTML = seriesSVG(points, w, h, color, reveal);
+        c.body.innerHTML = seriesSVG(c, points, w, h, color, reveal);
       } else {
-        chart.geom = null;
-        body.innerHTML = mode === 'loading' ? ghostSVG(w, h) : emptyChartHTML();
+        c.geom = null;
+        c.body.innerHTML = mode === 'loading' ? ghostSVG(c.id, w, h) : emptyChartHTML(c.empty);
       }
-      if (chart.mode === 'series' && mode !== 'series') chart.armed = false;
-      chart.mode = mode;
+      if (c.mode === 'series' && mode !== 'series') c.armed = false;
+      c.mode = mode;
       el.classList.toggle('no-series', mode !== 'series');
       el.style.setProperty('--dot-color', color || theme.up);
       el.style.setProperty('--dot-glow', (color || theme.up) + '80');
-      $('crossV').setAttribute('stroke', color || theme.up);
-      $('crossV').setAttribute('stroke-opacity', '0.5');
-      const s = state.summary;
-      el.setAttribute('aria-label', 'Portfolio chart, ' + state.rangeLabel
-        + (s.text && s.text.rangeChangePct ? ', ' + s.text.rangeChangePct : ''));
-      placeLiveDot();
-      if (chart.hoverX !== null) hoverAt(chart.hoverX);
+      c.crossV.setAttribute('stroke', color || theme.up);
+      c.crossV.setAttribute('stroke-opacity', '0.5');
+      placeLiveDot(c);
+      if (c.hoverX !== null) chartHover(c, c.hoverX);
     }
-    function placeLiveDot() {
-      const live = $('chartLive');
-      const g = chart.geom;
+    function placeLiveDot(c) {
+      const g = c.geom;
       if (!g) return;
       const last = g.pts[g.pts.length - 1];
-      live.style.left = last.x + 'px';
-      live.style.top = last.y + 'px';
+      c.live.style.left = last.x + 'px';
+      c.live.style.top = last.y + 'px';
       const value = g.points[g.points.length - 1].v;
       // Hydration (first frame, range switch) never pulses; only a later
       // live change does, at most every 2.5 s — PriceLivePoint's rule.
-      if (chart.armed && chart.lastValue !== null && value !== chart.lastValue
-          && !reducedMotion.matches && Date.now() - chart.lastPulse >= 2500) {
-        chart.lastPulse = Date.now();
-        live.classList.remove('pulse');
-        void live.offsetWidth;
-        live.classList.add('pulse');
+      if (c.armed && c.lastValue !== null && value !== c.lastValue
+          && !reducedMotion.matches && Date.now() - c.lastPulse >= 2500) {
+        c.lastPulse = Date.now();
+        c.live.classList.remove('pulse');
+        void c.live.offsetWidth;
+        c.live.classList.add('pulse');
       }
-      chart.armed = true;
-      chart.lastValue = value;
+      c.armed = true;
+      c.lastValue = value;
     }
-    function hoverAt(clientX) {
-      const el = $('chart');
-      const g = chart.geom;
-      if (!g) { leaveChart(); return; }
-      const rect = el.getBoundingClientRect();
+    function chartHover(c, clientX) {
+      const g = c.geom;
+      if (!g) { chartLeave(c); return; }
+      const rect = c.root.getBoundingClientRect();
       const x = Math.max(0, Math.min(g.w, clientX - rect.left));
       const idx = Math.max(0, Math.min(g.pts.length - 1, Math.round((x / g.w) * (g.pts.length - 1))));
       const pos = g.pts[idx];
       const point = g.points[idx];
-      chart.hoverX = clientX;
-      el.classList.add('hovering');
-      const v = $('crossV'), hz = $('crossH');
-      v.setAttribute('x1', pos.x); v.setAttribute('x2', pos.x); v.setAttribute('y1', 0); v.setAttribute('y2', g.h);
-      hz.setAttribute('x1', 0); hz.setAttribute('x2', g.w); hz.setAttribute('y1', pos.y); hz.setAttribute('y2', pos.y);
-      const dot = $('chartDot');
-      dot.style.left = pos.x + 'px';
-      dot.style.top = pos.y + 'px';
-      const tip = $('chartTip');
-      setHTML(tip, '<div class="tip-value">' + esc(fmtUSD(point.v)) + '</div><div class="tip-date">' + esc(tipDate(point.t)) + '</div>');
-      const tw = tip.offsetWidth || 120, th = tip.offsetHeight || 42;
+      c.hoverX = clientX;
+      c.root.classList.add('hovering');
+      c.crossV.setAttribute('x1', pos.x); c.crossV.setAttribute('x2', pos.x);
+      c.crossV.setAttribute('y1', 0); c.crossV.setAttribute('y2', g.h);
+      c.crossH.setAttribute('x1', 0); c.crossH.setAttribute('x2', g.w);
+      c.crossH.setAttribute('y1', pos.y); c.crossH.setAttribute('y2', pos.y);
+      c.dot.style.left = pos.x + 'px';
+      c.dot.style.top = pos.y + 'px';
+      const lines = c.tipLines(point);
+      setHTML(c.tip, '<div class="tip-value">' + esc(lines[0]) + '</div>'
+        + (lines[1] ? '<div class="tip-date">' + esc(lines[1]) + '</div>' : '')
+        + '<div class="tip-date">' + esc(tipDate(point.t)) + '</div>');
+      const tw = c.tip.offsetWidth || 120, th = c.tip.offsetHeight || 42;
       const offset = th / 2 + 5.5 + 12;
       const above = pos.y - offset >= th / 2 + 6 || pos.y + offset > g.h - th / 2 - 6;
-      const left = Math.max(tw / 2, Math.min(g.w - tw / 2, pos.x));
-      tip.style.left = left + 'px';
-      tip.style.top = (above ? pos.y - offset : pos.y + offset) + 'px';
+      c.tip.style.left = Math.max(tw / 2, Math.min(g.w - tw / 2, pos.x)) + 'px';
+      c.tip.style.top = (above ? pos.y - offset : pos.y + offset) + 'px';
     }
-    function leaveChart() {
-      chart.hoverX = null;
-      $('chart').classList.remove('hovering');
+    function chartLeave(c) {
+      c.hoverX = null;
+      c.root.classList.remove('hovering');
     }
-    function wireChart() {
-      const el = $('chart');
-      el.addEventListener('pointermove', (e) => hoverAt(e.clientX));
-      el.addEventListener('pointerdown', (e) => hoverAt(e.clientX));
-      el.addEventListener('pointerleave', leaveChart);
-      el.addEventListener('pointercancel', leaveChart);
-      el.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') leaveChart(); });
-      let frame = 0;
-      new ResizeObserver(() => {
-        cancelAnimationFrame(frame);
-        frame = requestAnimationFrame(() => {
-          if (state) renderChart(false);
-          else if (!$('chartBody').firstChild) $('chartBody').innerHTML = ghostSVG(Math.round(el.clientWidth), Math.round(el.clientHeight));
-        });
-      }).observe(el);
+    let portfolioChart = null;
+    function renderChart(force) {
+      const points = state.portfolioSparkline || [];
+      const s = state.summary;
+      const sign = finite(s.rangeChangePct) ? s.rangeChangePct
+        : (points.length >= 2 ? points[points.length - 1].v - points[0].v : 0);
+      setChart(portfolioChart, {
+        points,
+        color: sign >= 0 ? theme.up : theme.down,
+        loading: !!s.isLoadingChart,
+        empty: 'Open this timeframe once in Price on your iPhone',
+        tipLines: (p) => [fmtUSD(p.v)],
+        force
+      });
+      portfolioChart.root.setAttribute('aria-label', 'Portfolio chart, ' + state.rangeLabel
+        + (s.text && s.text.rangeChangePct ? ', ' + s.text.rangeChangePct : ''));
     }
 
     // ---------- Header, hero, range control ----------
@@ -1258,47 +1368,20 @@
         title = 'Copy the current link from Price → Settings → Desktop dashboard';
       } else if (failures >= 3) {
         mode = 'offline';
-        text = CLOUD ? 'Offline' : 'Phone offline';
-        title = CLOUD ? 'Prices could not be refreshed' : 'Open Price on your iPhone and keep it on the same Wi-Fi';
+        text = 'Offline';
+        title = 'Prices could not be refreshed';
       } else if (failures > 0) {
         mode = 'connecting';
         text = 'Reconnecting…';
       }
       if (el.dataset.state !== mode) el.dataset.state = mode;
       el.title = title;
-      // The phone-served page hands over to the always-on page instead of
-      // freezing while the phone sleeps.
-      const handoff = !CLOUD && mode === 'offline' && state && state.cloudLink;
-      setHTML($('statusText'), handoff
-        ? 'Phone offline · <a href="' + esc(state.cloudLink) + '">Open always-on view</a>'
-        : esc(text));
+      setText($('statusText'), text);
     }
-    function avatarHTML() {
-      const initial = esc(state.profileInitial || 'P');
-      if (CLOUD || !state.hasProfileImage) return '<span>' + initial + '</span>';
-      const active = (state.profiles || []).find((p) => p.isActive);
-      const src = '/profile-image?token=' + encodeURIComponent(token)
-        + '&profile=' + encodeURIComponent(active ? active.id : 'active')
-        + '&v=' + encodeURIComponent(state.profileImageVersion || 'current');
-      return '<img src="' + src + '" alt="" data-fallback="' + initial + '">';
-    }
+    // The profile that's active on the phone (switching happens there).
     function renderProfile() {
-      setHTML($('avatar'), avatarHTML());
-      const profiles = Array.isArray(state.profiles) ? state.profiles : [];
-      const holder = $('profileControl');
-      if (CLOUD || profiles.length < 2) {
-        setHTML(holder, '<span class="profile-name">' + esc(state.profileName || 'Portfolio') + '</span>');
-        return;
-      }
-      const html = '<span class="select-pill"><select id="profileSelect" aria-label="Profile">'
-        + profiles.map((p) => '<option value="' + esc(p.id) + '"' + (p.isActive ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('')
-        + '</select></span>';
-      setHTML(holder, html);
-      const select = $('profileSelect');
-      const active = profiles.find((p) => p.isActive);
-      if (active && select.value !== active.id && !profileChanging) select.value = active.id;
-      select.disabled = profileChanging;
-      select.onchange = () => switchProfile(select.value);
+      setHTML($('avatar'), '<span>' + esc(state.profileInitial || 'P') + '</span>');
+      setHTML($('profileControl'), '<span class="profile-name">' + esc(state.profileName || 'Portfolio') + '</span>');
     }
     function renderHero() {
       const s = state.summary;
@@ -1318,35 +1401,295 @@
     function rangeOptions() {
       return Array.isArray(state.rangeOptions) && state.rangeOptions.length ? state.rangeOptions : ['1H', '4H', '1D', '1W', '1M', 'ALL'];
     }
-    function renderRangeControl() {
-      const el = $('rangeControl');
-      const options = rangeOptions();
-      const selected = pendingRange || state.rangeLabel;
-      const index = Math.max(0, options.indexOf(selected));
+    // The app's segmented range picker; `onPick` gets the chosen label.
+    // Arrow keys step and wrap ALL <-> 1H like the app's range stepping.
+    function renderSegmented(el, options, selected, onPick) {
+      el._onPick = onPick;
+      el._options = options;
+      el._selected = selected;
       const sig = options.join(',');
       if (el.dataset.sig !== sig) {
         el.dataset.sig = sig;
         el.innerHTML = '<span class="seg-thumb" aria-hidden="true"></span>' + options.map((label) =>
           '<button class="seg" type="button" role="radio" data-range="' + esc(label) + '">' + esc(label) + '</button>').join('');
-        el.querySelectorAll('.seg').forEach((btn) => btn.addEventListener('click', () => setRange(btn.dataset.range)));
+        el.querySelectorAll('.seg').forEach((btn) => btn.addEventListener('click', () => el._onPick(btn.dataset.range)));
         el.onkeydown = (e) => {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
           e.preventDefault();
-          const opts = rangeOptions();
-          const current = opts.indexOf(pendingRange || state.rangeLabel);
-          // Wraps ALL <-> 1H like the app's range stepping.
+          const opts = el._options;
+          const current = opts.indexOf(el._selected);
           const next = opts[(current + (e.key === 'ArrowRight' ? 1 : -1) + opts.length) % opts.length];
-          setRange(next);
+          el._onPick(next);
           const btn = el.querySelector('[data-range="' + next + '"]');
           if (btn) btn.focus();
         };
       }
+      const index = Math.max(0, options.indexOf(selected));
       el.style.setProperty('--count', options.length);
       el.style.setProperty('--index', index);
       el.querySelectorAll('.seg').forEach((btn, i) => {
         const on = i === index;
         btn.setAttribute('aria-checked', on ? 'true' : 'false');
         btn.tabIndex = on ? 0 : -1;
+      });
+    }
+    function renderRangeControl() {
+      renderSegmented($('rangeControl'), rangeOptions(), state.rangeLabel, setRange);
+    }
+
+    // ---------- Asset detail (CoinDetailView) ----------
+    const detail = {
+      key: null, kind: null, id: null, chart: null,
+      hero: storageGet('PriceDetailHero.v1', 'price'),
+      series: new Map(), loading: new Set()
+    };
+    const HERO_LABEL = { price: 'Price', value: 'Value', earnings: 'Earnings' };
+
+    function detailRow() {
+      if (!state || !detail.key) return null;
+      const list = detail.kind === 'h' ? state.holdings : state.watches;
+      return (list || []).find((r) => (r.id || r.symbol) === detail.id) || null;
+    }
+    // Each asset remembers its own timeframe, like ChartTimeframePreference.
+    const detailRangeKey = (row) => 'PriceDetailRange.' + row.priceKey;
+    function detailRanges(row) {
+      return isHardware(row) ? ['1D', '1W', '1M'] : ['1H', '4H', '1D', '1W', '1M', 'ALL'];
+    }
+    function detailRange(row) {
+      const saved = storageGet(detailRangeKey(row), '1D');
+      return detailRanges(row).includes(saved) ? saved : '1D';
+    }
+    const detailPrice = (row, usd) => (row.isCash ? fmtCashRate(row.symbol, usd) : fmtPrice(usd));
+
+    async function loadAssetSeries(row, range) {
+      const cacheKey = row.priceKey + '|' + range;
+      const have = detail.series.get(cacheKey);
+      if ((have && Date.now() - have.at < 120000) || detail.loading.has(cacheKey)) return;
+      detail.loading.add(cacheKey);
+      let points = [];
+      try {
+        const key = row.isCash && row.symbol === 'EUR' ? 'EURUSDT' : row.priceKey;
+        const spec = RANGE_SPEC[range];
+        if (row.isCash && row.symbol !== 'EUR') {
+          points = [];
+        } else if (/^[A-Z0-9]{2,20}USDT$/.test(key) && !cloud.invalidBinance.has(key)) {
+          points = range === 'ALL' ? await binanceKlines(key, '1d', 1000) : await binanceKlines(key, spec.interval, spec.limit);
+        } else if (/^cg:[a-z0-9-]+$/.test(key)) {
+          const all = await coingeckoChart(key.slice(3), range === 'ALL' ? '365' : spec.days);
+          const end = all.length ? all[all.length - 1].t : 0;
+          points = downsample(range === 'ALL' ? all : all.filter((p) => p.t >= end - spec.span), 200);
+        } else {
+          // Stocks, hardware, stDUSK: the phone's own history from the snapshot.
+          const fromPhone = (((cloud.payload || {}).assetSeries || {})[row.priceKey] || {})[range];
+          points = fromPhone || (range === '1D' ? (row.sparkline || []) : []);
+        }
+      } catch (_) {}
+      detail.series.set(cacheKey, { at: Date.now(), points });
+      detail.loading.delete(cacheKey);
+      if (detail.key) renderDetail();
+    }
+    // Right edge follows the live price, like the hero chart's net worth.
+    function withLivePrice(points, price) {
+      if (!points || points.length < 2 || !(price > 0)) return points || [];
+      const copy = points.slice();
+      const nowT = Date.now() / 1000;
+      if (nowT - copy[copy.length - 1].t < 120) copy[copy.length - 1] = { t: nowT, v: price };
+      else copy.push({ t: nowT, v: price });
+      return copy;
+    }
+
+    function renderDetail() {
+      const row = detailRow();
+      if (!row) { hideDetail(); return; }
+      const isHolding = detail.kind === 'h';
+      const amount = isHolding ? row.amount : 0;
+      const price = row.priceUSD;
+      const range = detailRange(row);
+      const entry = detail.series.get(row.priceKey + '|' + range);
+      if (!entry || Date.now() - entry.at > 120000) loadAssetSeries(row, range);
+      const pts = entry ? withLivePrice(entry.points, price) : [];
+
+      let pct = null, priceDelta = null;
+      if (pts.length >= 2 && pts[0].v > 0) {
+        priceDelta = pts[pts.length - 1].v - pts[0].v;
+        pct = priceDelta / pts[0].v * 100;
+      } else if (range === '1D' && finite(changeOf(row)) && price > 0) {
+        pct = changeOf(row);
+        priceDelta = price - price / (1 + pct / 100);
+      }
+      const apy30 = isHolding ? row.apyEarnings30DUSD : null;
+      const canValue = amount > 0, canEarn = apy30 > 0;
+      let hero = detail.hero;
+      if ((hero === 'value' && !canValue) || (hero === 'earnings' && !canEarn)) hero = 'price';
+
+      if ($('detailBadge')._key !== row.symbol + theme.name + iconsVersion) {
+        $('detailBadge')._key = row.symbol + theme.name + iconsVersion;
+        $('detailBadge').innerHTML = badgeHTML(row);
+      }
+      setText($('detailName'), row.displayName || row.name || row.symbol);
+      setText($('detailSym'), row.symbol);
+      const cls = finite(pct) ? trendClass(pct) : 'muted';
+      setHTML($('detailPill'), row.isCash
+        ? '<span class="cash-tag">CASH</span>'
+        : '<span class="detail-pill ' + cls + '">'
+          + (hero === 'value' && finite(priceDelta) ? '<span class="chg-usd">' + esc(fmtSignedPillUSD(priceDelta * amount)) + '</span>' : '')
+          + '<span>' + esc(finite(pct) ? fmtPct(pct) : DASH) + '</span><span class="chg-tf">· ' + esc(range) + '</span></span>');
+
+      const heroEl = $('detailHero');
+      heroEl.classList.toggle('toggles', canValue || canEarn);
+      heroEl.tabIndex = canValue || canEarn ? 0 : -1;
+      setText($('detailHeroLabel'), canValue || canEarn ? HERO_LABEL[hero] : '');
+      const heroText = !(price > 0) ? DASH
+        : hero === 'value' ? fmtUSD(price * amount)
+        : hero === 'earnings' ? '+' + fmtUSD(apy30)
+        : detailPrice(row, price);
+      setText($('detailHeroValue'), heroText);
+
+      const rows = [];
+      if (amount > 0 && (!row.isCash || row.symbol === 'EUR')) {
+        const line = (label, value, cls2, foot) => '<div class="detail-row"><span class="label">' + esc(label) + '</span><span>'
+          + (foot ? '<span class="foot">' + esc(foot) + '</span>' : '') + '<span class="val ' + (cls2 || '') + '">' + esc(value) + '</span></span></div>';
+        rows.push(line('Holding', fmtCompactAmount(amount) + ' ' + row.symbol));
+        if (hero !== 'price' && price > 0) rows.push(line('Price', detailPrice(row, price)));
+        if (hero !== 'value' && price > 0) rows.push(line('Value', fmtCompactUSD(price * amount)));
+        if (canEarn && hero !== 'earnings') rows.push(line('30D Earnings', '+' + fmtCompactUSD(apy30)));
+        if (finite(row.pnlPctVsCost) && row.avgPriceUSD > 0) {
+          rows.push(line('Total return', fmtPct(row.pnlPctVsCost), trendClass(row.pnlPctVsCost), 'avg ' + fmtPrice(row.avgPriceUSD)));
+        }
+      }
+      setHTML($('detailRows'), rows.join(''));
+
+      let debt = '';
+      if (isHolding && row.isCash && finite(row.grossValueUSD) && row.grossValueUSD > row.effectiveValueUSD + 0.5) {
+        const gross = row.grossValueUSD, free = Math.max(0, row.effectiveValueUSD), owed = gross - free;
+        const freePct = free / gross * 100, debtPct = owed / gross * 100;
+        const cell = (k, v, cls2, p) => '<div class="debt-cell"><div class="k">' + k + '</div><div class="v ' + cls2 + '">' + esc(v) + '</div>'
+          + (p === null ? '' : '<div class="p">' + Math.round(p) + '%</div>') + '</div>';
+        debt = '<div class="debt-bar-lg"><span style="flex:' + freePct.toFixed(3) + ' 1 0;background:var(--up)"></span>'
+          + '<span style="flex:' + debtPct.toFixed(3) + ' 1 0;background:var(--down)"></span></div>'
+          + '<div class="debt-cells">' + cell('Free', fmtCompactUSD(free), 'up', freePct)
+          + cell('Debt', '−' + fmtCompactUSD(owed), 'down', debtPct)
+          + cell('Total', fmtCompactUSD(gross), 'muted', null) + '</div>';
+      }
+      setHTML($('detailDebt'), debt);
+
+      const loading = !entry || detail.loading.has(row.priceKey + '|' + range);
+      $('detailChartBlock').hidden = row.isCash && pts.length < 2 && !loading;
+      setText($('detailChartLabel'), isHardware(row) ? 'Price · Daily'
+        : String(row.priceKey).startsWith('cg:sozu') ? 'Price · Rate-adjusted' : 'Price');
+      setText($('detailChartRange'), range);
+      setChart(detail.chart, {
+        points: pts,
+        // The coin's own accent, like CoinDetailView's dynamicAccent.
+        color: /^#[0-9a-fA-F]{6}$/.test(row.tint || '') && !row.isCash ? row.tint : (finite(pct) && pct < 0 ? theme.down : theme.up),
+        loading,
+        empty: isHardware(row) ? 'Price history unavailable' : 'No chart data for this range',
+        tipLines: (p) => (hero === 'value' && amount > 0 ? [fmtUSD(p.v * amount), detailPrice(row, p.v)] : [detailPrice(row, p.v)])
+      });
+      renderSegmented($('detailRange'), detailRanges(row), range, (label) => {
+        storageSet(detailRangeKey(row), label);
+        renderDetail();
+      });
+
+      // Market overview, only with something to show (hasAnyStat).
+      const stats = [];
+      if (!row.isCash) {
+        if (row.marketCapUSD > 0) stats.push(['Market cap', fmtCompactUSD(row.marketCapUSD)]);
+        if (row.high24hUSD > 0 || row.low24hUSD > 0) {
+          stats.push(['24h high', row.high24hUSD > 0 ? detailPrice(row, row.high24hUSD) : DASH]);
+          stats.push(['24h low', row.low24hUSD > 0 ? detailPrice(row, row.low24hUSD) : DASH]);
+        }
+        const compact = (n) => nf(0, Math.abs(n) >= 100 ? 0 : 2).format(n);
+        const compactNumber = (n) => {
+          const a = Math.abs(n);
+          for (const [div, suf] of TIERS) if (a >= div) return compact(n / div) + suf;
+          return compact(n);
+        };
+        if (row.volume24h > 0) stats.push(['Volume · ' + row.symbol, compactNumber(row.volume24h)]);
+        if (row.quoteVolume24hUSD > 0) stats.push(['Volume · USD', compactNumber(row.quoteVolume24hUSD)]);
+      }
+      $('detailStats').hidden = !stats.length;
+      setHTML($('detailStats'), stats.length
+        ? '<div class="section-head"><h2>Market overview</h2></div><div class="stats">'
+          + stats.map(([k, v]) => stat(k, v)).join('') + '</div>'
+        : '');
+    }
+
+    function detailHash() {
+      return location.pathname + location.search + '#r=' + cloudParams.record + (detail.key ? '&a=' + encodeURIComponent(detail.key) : '');
+    }
+    function openDetail(kind, id) {
+      detail.kind = kind;
+      detail.id = id;
+      detail.key = kind + ':' + id;
+      history.pushState({ priceDetail: true }, '', detailHash());
+      showDetail();
+    }
+    function showDetail() {
+      detail.scrollY = window.scrollY;
+      $('dashboard').hidden = true;
+      $('detail').hidden = false;
+      document.body.classList.add('detail-open');
+      window.scrollTo(0, 0);
+      detail.chart.sig = '';
+      renderDetail();
+    }
+    function hideDetail() {
+      detail.key = null;
+      $('detail').hidden = true;
+      $('dashboard').hidden = false;
+      document.body.classList.remove('detail-open');
+      if (state) { portfolioChart.sig = ''; render(); }
+      window.scrollTo(0, detail.scrollY || 0);
+    }
+    function closeDetail() {
+      if (history.state && history.state.priceDetail) {
+        history.back();
+      } else {
+        detail.key = null;
+        history.replaceState(null, '', detailHash());
+        hideDetail();
+      }
+    }
+    // Back/forward and reloads land on the right view.
+    function syncRoute() {
+      if (!cloudParams || !state) return;
+      const asset = new URLSearchParams(location.hash.slice(1)).get('a');
+      if (asset && /^[hw]:/.test(asset)) {
+        detail.kind = asset[0];
+        detail.id = asset.slice(2);
+        detail.key = asset;
+        if ($('detail').hidden) showDetail(); else renderDetail();
+      } else if (detail.key || !$('detail').hidden) {
+        hideDetail();
+      }
+    }
+    function wireDetail() {
+      detail.chart = makeChart($('detailChart'), 'dt');
+      $('detailBack').addEventListener('click', closeDetail);
+      const cycleHero = () => {
+        const row = detailRow();
+        if (!row) return;
+        const amount = detail.kind === 'h' ? row.amount : 0;
+        const order = ['price'].concat(amount > 0 ? ['value'] : [], detail.kind === 'h' && row.apyEarnings30DUSD > 0 ? ['earnings'] : []);
+        if (order.length < 2) return;
+        const current = order.indexOf(detail.hero);
+        detail.hero = order[(current + 1) % order.length];
+        storageSet('PriceDetailHero.v1', detail.hero);
+        renderDetail();
+      };
+      $('detailHero').addEventListener('click', cycleHero);
+      $('detailHero').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cycleHero(); } });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && detail.key) closeDetail(); });
+      window.addEventListener('popstate', syncRoute);
+      // Rows open their asset page, by click or Enter.
+      const openFromRow = (tr) => { if (tr && tr.dataset.kind && state) openDetail(tr.dataset.kind, tr.dataset.id); };
+      document.addEventListener('click', (e) => {
+        if (e.target.closest('button, a')) return;
+        openFromRow(e.target.closest('tbody tr'));
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.matches && e.target.matches('tbody tr')) openFromRow(e.target);
       });
     }
 
@@ -1397,7 +1740,6 @@
     // ---------- Tables ----------
     let iconsVersion = 0;
     function iconSource(sym) {
-      if (!CLOUD) return '/icon/' + encodeURIComponent(sym) + '?token=' + encodeURIComponent(token) + '&tone=' + theme.name;
       const data = cloud.icons[sym + '@' + theme.name] || cloud.icons[sym];
       return data ? 'data:image/png;base64,' + data : null;
     }
@@ -1473,7 +1815,19 @@
         return dir === 'asc' ? av - bv : bv - av;
       });
     }
-    const isCrypto = (row) => !!row && !row.isStock && !row.isCash;
+    const isHardware = (row) => String(row.priceKey || '').startsWith('hardware:');
+    const isCrypto = (row) => !!row && !row.isStock && !row.isCash && !isHardware(row);
+    // Same buckets as WatchAssetFilterMode: cash is fiat, so it belongs to
+    // both Crypto and Stocks; hardware only shows under All.
+    function filterRows(rows, mode) {
+      if (mode === 'crypto') return rows.filter((r) => !r.isStock && !isHardware(r));
+      if (mode === 'stocks') return rows.filter((r) => r.isStock || r.isCash);
+      return rows;
+    }
+    function filterAvailable(rows) {
+      const crypto = rows.some(isCrypto), stocks = rows.some((r) => r.isStock), hardware = rows.some(isHardware);
+      return (crypto && stocks) || (hardware && (crypto || stocks));
+    }
     const nameOf = (row) => String(row.displayName || row.name || row.symbol || '').toLocaleLowerCase();
     const changeOf = (row) => (finite(row.changePct1D) ? row.changePct1D : row.changePct24h);
 
@@ -1516,6 +1870,9 @@
     }
     function createHoldingRow(h) {
       const tr = document.createElement('tr');
+      tr.dataset.kind = 'h';
+      tr.dataset.id = h.id || h.symbol;
+      tr.tabIndex = 0;
       tr.innerHTML = '<td class="col-asset"><div class="asset">' + badgeHTML(h) + '<div class="asset-copy">'
         + '<div class="asset-name" data-s="name"></div><div class="asset-sub"><span class="only-wide" data-s="amount"></span><span class="only-compact" data-s="unit"></span></div>'
         + '</div></div></td>'
@@ -1550,11 +1907,10 @@
     }
     function renderHoldings() {
       const all = state.holdings || [];
-      const hasCrypto = all.some(isCrypto), hasStocks = all.some((h) => h.isStock);
-      let filter = holdingFilter();
-      if (!(hasCrypto && hasStocks)) filter = 'all';
-      setHTML($('holdingTools'), hasCrypto && hasStocks ? filterHTML(filter, 'data-holding-filter') : '');
-      const visible = sortedHoldings(filter === 'crypto' ? all.filter(isCrypto) : filter === 'stocks' ? all.filter((h) => h.isStock) : all);
+      const canFilter = filterAvailable(all);
+      const filter = canFilter ? holdingFilter() : 'all';
+      setHTML($('holdingTools'), canFilter ? filterHTML(filter, 'data-holding-filter') : '');
+      const visible = sortedHoldings(filterRows(all, filter));
       setText($('holdingsCount'), visible.length === all.length ? String(all.length) : visible.length + ' of ' + all.length);
 
       const table = $('holdingsTable'), head = $('holdingsHead');
@@ -1580,13 +1936,17 @@
     }
 
     // Watchlist
-    const WATCH_COLS = [
-      { label: 'Asset', cls: 'col-asset', sort: 'name' },
-      { label: 'Market cap', cls: 'num col-cap', sort: 'marketCap' },
-      { label: '1D', cls: 'num col-change', sort: 'change' },
-      { label: 'Trend', cls: 'col-trend' },
-      { label: 'Price', cls: 'num col-value', sort: 'price' }
-    ];
+    const WATCH_VALUE_KEY = 'PriceWatchValueMode.v1';
+    const watchValueMode = () => (storageGet(WATCH_VALUE_KEY, 'price') === 'marketCap' ? 'marketCap' : 'price');
+    function watchCols() {
+      const mcap = watchValueMode() === 'marketCap';
+      return [
+        { label: 'Asset', cls: 'col-asset', sort: 'name' },
+        { label: '1D', cls: 'num col-change', sort: 'change' },
+        { label: 'Trend', cls: 'col-trend' },
+        { label: mcap ? 'MCap' : 'Price', cls: 'num col-value', sort: mcap ? 'marketCap' : 'price' }
+      ];
+    }
     const WATCH_SORT_KEY = 'CryptoFolioDesktopWatchSort.v2';
     const WATCH_FILTER_KEY = 'CryptoFolioDesktopWatchFilter.v1';
     const WATCH_MODES = { manual: 'asc', name: 'asc', marketCap: 'desc', change: 'desc', price: 'desc' };
@@ -1611,9 +1971,11 @@
     }
     function createWatchRow(w) {
       const tr = document.createElement('tr');
+      tr.dataset.kind = 'w';
+      tr.dataset.id = w.id || w.symbol;
+      tr.tabIndex = 0;
       tr.innerHTML = '<td class="col-asset"><div class="asset">' + badgeHTML(w) + '<div class="asset-copy">'
         + '<div class="asset-name" data-s="name"></div><div class="asset-sub" data-s="sym"></div></div></div></td>'
-        + '<td class="num col-cap" data-s="cap"></td>'
         + '<td class="num col-change" data-s="change"></td>'
         + '<td class="col-trend"><div class="mini" data-s="trend"></div></td>'
         + '<td class="num col-value"><div class="value-main" data-s="price"></div><div class="value-sub" data-s="sub"></div></td>';
@@ -1625,27 +1987,30 @@
       const change = changeOf(w);
       setText(s.name, w.displayName || w.name || w.symbol);
       setText(s.sym, w.symbol);
-      setClass(s.cap, 'num col-cap' + (t.marketCap ? '' : ' dash'));
-      setText(s.cap, t.marketCap || DASH);
       setClass(s.change, 'num col-change ' + (t.change ? trendClass(change) : 'dash'));
       setText(s.change, t.change || DASH);
       setHTML(s.trend, sparkSVG(w.sparkline, 88, 28, 1.6, 1));
-      setText(s.price, t.price || DASH);
+      setText(s.price, (watchValueMode() === 'marketCap' ? t.marketCap : t.price) || DASH);
       setHTML(s.sub, '<span class="only-compact ' + (t.change ? trendClass(change) : 'dash') + '">' + esc(t.change || DASH) + '</span>');
     }
     function renderWatches() {
       const all = state.watches || [];
-      const hasCrypto = all.some(isCrypto), hasStocks = all.some((w) => w.isStock);
-      let filter = watchFilter();
-      if (!(hasCrypto && hasStocks)) filter = 'all';
+      const canFilter = filterAvailable(all);
+      const filter = canFilter ? watchFilter() : 'all';
       const sort = watchSort();
+      const mode = watchValueMode();
+      const tabs = '<div class="value-tabs" role="tablist" aria-label="Show">'
+        + [['price', 'Price'], ['marketCap', 'MCap']].map(([m, label]) =>
+          '<button class="value-tab" type="button" role="tab" aria-selected="' + (mode === m) + '" data-watch-value="' + m + '">' + label + '</button>').join('')
+        + '</div>';
       setHTML($('watchTools'),
         (sort.mode !== 'manual' ? '<button class="chip" type="button" data-watch-reset>Custom order</button>' : '')
-        + (hasCrypto && hasStocks ? filterHTML(filter, 'data-watch-filter') : ''));
-      const visible = sortedWatches(filter === 'crypto' ? all.filter(isCrypto) : filter === 'stocks' ? all.filter((w) => w.isStock) : all);
+        + tabs
+        + (canFilter ? filterHTML(filter, 'data-watch-filter') : ''));
+      const visible = sortedWatches(filterRows(all, filter));
       setText($('watchCount'), visible.length === all.length ? String(all.length) : visible.length + ' of ' + all.length);
       const table = $('watchTable');
-      setHTML($('watchHead').tHead, sortHeader(WATCH_COLS, sort, 'data-watch-sort'));
+      setHTML($('watchHead').tHead, sortHeader(watchCols(), sort, 'data-watch-sort'));
       const empty = $('watchEmpty');
       empty.hidden = visible.length > 0;
       table.hidden = !visible.length;
@@ -1700,6 +2065,14 @@
         } else if (target.hasAttribute('data-watch-reset')) {
           storageSet(WATCH_SORT_KEY, 'manual|asc');
           renderWatches();
+        } else if (target.dataset.watchValue) {
+          storageSet(WATCH_VALUE_KEY, target.dataset.watchValue);
+          // A value-column sort follows the switch, like the iOS list.
+          const cur = watchSort();
+          if (cur.mode === 'price' || cur.mode === 'marketCap') {
+            storageSet(WATCH_SORT_KEY, (target.dataset.watchValue === 'marketCap' ? 'marketCap' : 'price') + '|' + cur.dir);
+          }
+          renderWatches();
         } else if (target.dataset.watchFilter) {
           storageSet(WATCH_FILTER_KEY, target.dataset.watchFilter);
           renderWatches();
@@ -1717,10 +2090,6 @@
         if (img.classList.contains('badge-img')) {
           img.parentElement.classList.remove('has-img');
           img.remove();
-        } else if (img.dataset && img.dataset.fallback) {
-          const span = document.createElement('span');
-          span.textContent = img.dataset.fallback;
-          img.replaceWith(span);
         }
       }, true);
     }
@@ -1739,11 +2108,12 @@
       renderHoldings();
       renderWatches();
       alignColumns();
+      if (detail.key) renderDetail();
     }
     function schedule(delay) {
       clearTimeout(pollTimer);
       if (document.hidden || linkExpired) return;
-      pollTimer = setTimeout(CLOUD ? cloudTick : load, delay);
+      pollTimer = setTimeout(cloudTick, delay);
     }
     async function fetchWithTimeout(url, options, ms) {
       const ctrl = new AbortController();
@@ -1755,94 +2125,17 @@
       }
     }
 
-    // ---------- Phone-served mode ----------
-    function nextDelay() {
-      if (failures) return Math.min(15000, POLL_MS * Math.pow(2, Math.min(failures - 1, 2)));
-      // Chart still hydrating on the phone: check back sooner.
-      return state && state.summary && state.summary.isLoadingChart ? 1000 : POLL_MS;
-    }
-    async function request(path, params) {
-      const q = new URLSearchParams(Object.assign({ token }, params || {}));
-      const res = await fetchWithTimeout(path + '?' + q.toString());
-      if (res.status === 403) { linkExpired = true; throw new Error('expired'); }
-      if (!res.ok) throw new Error(String(res.status));
-      return res.json();
-    }
-    async function load() {
-      if (inFlight) return;
-      inFlight = true;
-      const started = epoch;
-      try {
-        const next = await request('/api/state');
-        failures = 0;
-        if (started === epoch && !pendingRange && !profileChanging) {
-          state = next;
-          render();
-        }
-      } catch (_) {
-        failures += 1;
-        renderStatus();
-      } finally {
-        inFlight = false;
-        schedule(nextDelay());
-      }
-    }
-    async function setRange(label) {
-      if (!state || !label) return;
-      if (label === (pendingRange || state.rangeLabel)) return;
-      if (CLOUD) {
-        cloud.range = label;
-        storageSet('PriceCloudRange.v1', label);
-        state = computeCloudState();
-        render();
-        return;
-      }
-      epoch += 1;
-      pendingRange = label;
-      renderRangeControl();
-      $('chart').classList.add('pending');
-      try {
-        const next = await request('/api/range', { range: label });
-        if (pendingRange === label) {
-          failures = 0;
-          pendingRange = null;
-          state = next;
-          render();
-        }
-      } catch (_) {
-        if (pendingRange === label) {
-          pendingRange = null;
-          failures += 1;
-          renderRangeControl();
-          renderStatus();
-        }
-      } finally {
-        if (!pendingRange) $('chart').classList.remove('pending');
-        schedule(nextDelay());
-      }
-    }
-    async function switchProfile(id) {
-      if (CLOUD || !state || !id || profileChanging) return;
-      const active = (state.profiles || []).find((p) => p.isActive);
-      if (active && active.id === id) return;
-      epoch += 1;
-      profileChanging = true;
-      try {
-        const next = await request('/api/profile', { id });
-        failures = 0;
-        state = next;
-      } catch (_) {
-        failures += 1;
-      } finally {
-        profileChanging = false;
-        render();
-        schedule(nextDelay());
-      }
+    function setRange(label) {
+      if (!state || !label || label === state.rangeLabel) return;
+      cloud.range = label;
+      storageSet('PriceCloudRange.v1', label);
+      state = computeCloudState();
+      render();
     }
 
-    // ---------- Always-on mode ----------
-    // The snapshot is the phone's own LAN payload (holdings, settings,
-    // charts), encrypted on the phone. Prices are refreshed here directly
+    // ---------- Snapshot + live prices ----------
+    // The snapshot (holdings, settings, charts) is built and encrypted on
+    // the phone by DashboardSnapshot / DashboardCloudSync. Prices are refreshed here directly
     // from Binance (every tick) and CoinGecko (every minute), the same way
     // the Apple Watch refreshes itself, and every derived number is
     // recomputed with the app's formulas.
@@ -1989,7 +2282,9 @@
               price,
               change: parseFloat(row.priceChangePercent),
               high: parseFloat(row.highPrice),
-              low: parseFloat(row.lowPrice)
+              low: parseFloat(row.lowPrice),
+              volume: parseFloat(row.volume),
+              quoteVolume: parseFloat(row.quoteVolume)
             };
           }
           ok = true;
@@ -2104,6 +2399,16 @@
       }
     }
 
+    function liveStats(row, q) {
+      if (!q) return {};
+      const pick = (live, fallback) => (live > 0 ? live : fallback);
+      return {
+        high24hUSD: pick(q.high, row.high24hUSD),
+        low24hUSD: pick(q.low, row.low24hUSD),
+        volume24h: pick(q.volume, row.volume24h),
+        quoteVolume24hUSD: pick(q.quoteVolume, row.quoteVolume24hUSD)
+      };
+    }
     function patchSpark(points, price) {
       if (!Array.isArray(points) || points.length < 2 || !(price > 0)) return points;
       const copy = points.slice();
@@ -2136,7 +2441,7 @@
         const change = q && finite(q.change) ? q.change : changeOf(h);
         const pnl = !h.isCash && h.avgPriceUSD > 0 && finite(unit) ? (unit - h.avgPriceUSD) / h.avgPriceUSD * 100 : null;
         const apy30 = h.apyPct > 0 && value > 0 ? value * h.apyPct / 100 * 30 / 365 : null;
-        return Object.assign({}, h, {
+        return Object.assign({}, h, liveStats(h, q), {
           priceUSD: unit, valueUSD: value, effectiveValueUSD: value, grossValueUSD: null, freeCashUSD: null,
           changePct1D: change, pnlPctVsCost: pnl, apyEarnings30DUSD: apy30,
           marketCapUSD: q && q.marketCap > 0 ? q.marketCap : h.marketCapUSD,
@@ -2245,7 +2550,7 @@
         const price = w.symbol === 'EUR' && w.isCash ? fx : w.symbol === 'USD' && w.isCash ? 1 : (q && q.price > 0 ? q.price : w.priceUSD);
         const change = q && finite(q.change) ? q.change : changeOf(w);
         const cap = q && q.marketCap > 0 ? q.marketCap : w.marketCapUSD;
-        return Object.assign({}, w, {
+        return Object.assign({}, w, liveStats(w, q), {
           priceUSD: price, changePct1D: change, marketCapUSD: cap,
           sparkline: q ? patchSpark(w.sparkline, price) : w.sparkline,
           text: {
@@ -2313,6 +2618,7 @@
         failures = ok ? 0 : failures + 1;
         state = computeCloudState();
         render();
+        if (!detail.routed) { detail.routed = true; syncRoute(); }
       } catch (_) {
         failures += 1;
         if (state) render(); else renderStatus();
@@ -2337,42 +2643,24 @@
     }
 
     function boot() {
-      wireChart();
+      portfolioChart = makeChart($('chart'), 'pf');
+      wireDetail();
       wireTables();
-      if (CLOUD) {
-        if (!window.crypto || !crypto.subtle || typeof DecompressionStream === 'undefined') {
-          linkExpired = true;
-          linkMessage = 'This browser is too old';
-          renderStatus();
-          return;
-        }
-        if (!cloudParams.key) {
-          linkExpired = true;
-          linkMessage = 'Open the full link from Price on your iPhone';
-          renderStatus();
-          return;
-        }
-        cloudBoot();
-      } else {
-        try {
-          const initial = JSON.parse($('initialState').textContent);
-          if (initial && initial.summary) state = initial;
-        } catch (_) {}
-        if (state) {
-          render();
-          schedule(POLL_MS);
-        } else {
-          load();
-        }
-      }
+      const stop = (message) => {
+        linkExpired = true;
+        linkMessage = message;
+        renderStatus();
+      };
+      if (!cloudParams || !cloudParams.key) return stop('Open your dashboard link from Price on your iPhone');
+      if (!window.crypto || !crypto.subtle || typeof DecompressionStream === 'undefined') return stop('This browser is too old');
+      cloudBoot();
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) clearTimeout(pollTimer);
-        else if (CLOUD) cloudTick();
-        else load();
+        else cloudTick();
       });
-      const rerender = () => { if (state) { chart.sig = ''; render(); } };
+      const rerender = () => { if (state) { portfolioChart.sig = ''; render(); } };
       if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', rerender);
-      if (CLOUD && prefersLight.addEventListener) {
+      if (prefersLight.addEventListener) {
         prefersLight.addEventListener('change', () => { if (cloud.payload) { state = computeCloudState(); rerender(); } });
       }
     }
